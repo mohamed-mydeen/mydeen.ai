@@ -1747,8 +1747,11 @@ input  { font-family: inherit; }
   display: flex;
   z-index: 999;
   background: var(--color-background);
-  overflow-y: auto; /* Allow scrolling on mobile */
+  overflow-y: auto;
+  scrollbar-width: none;
 }
+.auth-root::-webkit-scrollbar { display: none; }
+
 
 @media (max-width: 899px) {
   .auth-root {
@@ -1769,11 +1772,12 @@ input  { font-family: inherit; }
 
 @media (max-width: 899px) {
   .auth-hero {
-    min-height: 280px; /* High impact height for mobile */
+    min-height: 220px; /* Reduced for better fit on mobile */
     flex: none;
     border-radius: 0 0 32px 32px;
   }
 }
+
 
 .auth-hero__img {
   position: absolute;
@@ -1803,9 +1807,10 @@ input  { font-family: inherit; }
   display: flex;
   flex-direction: column;
   justify-content: flex-end;
-  padding: 64px 48px 48px; /* Increased top padding */
-  gap: 20px;
+  padding: 40px 24px 32px; /* Reduced padding for mobile fit */
+  gap: 16px;
 }
+
 
 .auth-hero__badge {
   display: inline-flex;
@@ -1836,6 +1841,12 @@ input  { font-family: inherit; }
   letter-spacing: -0.02em;
   animation: authFieldIn 0.6s 0.55s ease both;
 }
+@media (max-width: 899px) {
+  .auth-hero__headline {
+    font-size: 22px;
+  }
+}
+
 .auth-hero__headline em {
   font-style: normal;
   background: linear-gradient(90deg, #fbbf24, #f59e0b);
@@ -1902,20 +1913,24 @@ input  { font-family: inherit; }
 @media (max-width: 899px) {
   .auth-panel {
     max-width: 100%;
-    padding: 32px 24px 60px;
+    padding: 32px 20px 24px; /* Increased top padding for logo space, reduced bottom */
     flex-grow: 1;
-    min-height: calc(100vh - 280px);
-    background: var(--color-background); /* Unified background to 'fill' space */
+    min-height: auto;
+    background: var(--color-background);
   }
 }
+
+
 
 /* ── Brand ───────────────────────────────────────────────── */
 .auth-panel__brand {
   display: flex;
   align-items: center;
-  gap: 10px;
-  margin-bottom: 40px;
+  gap: 12px;
+  margin-bottom: 16px; /* Further reduced margin to save space */
 }
+
+
 .auth-panel__logo {
   width: 40px;
   height: 40px;
@@ -1934,23 +1949,25 @@ input  { font-family: inherit; }
 
 /* ── Heading ─────────────────────────────────────────────── */
 .auth-panel__heading {
-  margin-bottom: 28px;
+  margin-bottom: 16px; /* Reduced margin */
 }
 .auth-panel__title {
-  font-size: 26px;
+  font-size: 22px; /* Slightly smaller for mobile */
   font-weight: 700;
   color: var(--color-on-surface);
   letter-spacing: -0.02em;
   line-height: 1.2;
-  margin-bottom: 6px;
+  margin-bottom: 4px;
   animation: authFieldIn 0.45s 0.2s ease both;
 }
 .auth-panel__subtitle {
-  font-size: 14px;
+  font-size: 13px;
   color: var(--color-on-surface-variant);
-  line-height: 1.5;
+  line-height: 1.4;
   animation: authFieldIn 0.45s 0.3s ease both;
 }
+
+
 
 /* ── Tabs ────────────────────────────────────────────────── */
 .auth-tabs {
@@ -1958,10 +1975,12 @@ input  { font-family: inherit; }
   background: var(--color-surface-container-low);
   border-radius: 12px;
   padding: 4px;
-  margin-bottom: 28px;
+  margin-bottom: 16px; /* Further reduced margin */
   gap: 4px;
   animation: authFieldIn 0.45s 0.35s ease both;
 }
+
+
 .auth-tab {
   flex: 1;
   padding: 10px;
@@ -1987,9 +2006,10 @@ input  { font-family: inherit; }
 .auth-form {
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: 14px; /* Reduced gap */
   animation: authFieldIn 0.4s 0.4s ease both;
 }
+
 
 .auth-field-group {
   display: flex;
@@ -2219,11 +2239,12 @@ input  { font-family: inherit; }
 
 /* ── Footer switch ───────────────────────────────────────── */
 .auth-footer {
-  margin-top: 24px;
+  margin-top: 16px; /* Reduced margin */
   text-align: center;
-  font-size: 14px;
+  font-size: 13px; /* Slightly smaller */
   color: var(--color-on-surface-variant);
 }
+
 .auth-footer-link {
   font-weight: 600;
   color: #4f46e5;
