@@ -1,0 +1,77 @@
+-----------------------------------------------------------
+| Secure Complaint Management System with Attack Detection  |
+-----------------------------------------------------------
+Normal complaint system illa
+
+Special features:
+
+SQL Injection attempt detect pannum
+
+Wrong login attempt alert
+
+Admin security dashboard
+
+Logs & threat analysis
+
+Tech Stack:
+
+Java + Spring Boot
+React
+MySQL
+Basic Cyber Security
+
+
+👉 Complaint system ellarum pannuvaanga
+👉 Attack detection yaarum pannala 😎
+
+📈 Resume Strength: 9/10
+----------------------------------------------------------------------------------------------------
+
+You are a senior cybersecurity engineer and hackathon mentor.
+
+Help me build a hackathon-level project titled:
+
+-----------------------------------------------------------
+| "Seasonal Fake Offer & Phishing Website Detection System" |  
+-----------------------------------------------------------
+
+Problem:
+During festivals like New Year and Diwali, attackers create fake offer websites that promise free gifts and ask users to share links. These sites are used for deception and monetization.
+
+Requirements:
+- 100% FREE and open-source tools only
+- No HTML, CSS, or JavaScript
+- Frontend must be built using Streamlit (Python only)
+- Backend logic in Python
+- Cybersecurity-focused approach
+- Explainable output (why a site is fake)
+
+Core Features:
+1. URL pattern analysis (length, suspicious keywords, domain extension)
+2. Domain age verification using WHOIS
+3. HTTPS and SSL certificate validation using Python built-in libraries
+4. Web page content analysis to detect scam phrases
+5. Risk scoring engine (0–100) with clear classification:
+   - Safe
+   - Suspicious
+   - Fake / Phishing
+6. Streamlit UI showing:
+   - Risk score
+   - Status (Safe / Fake)
+   - Reasons for classification
+
+Deliverables:
+- Clean project folder structure
+- Python module-wise code
+- Hackathon-ready demo flow
+- README.md content
+- Resume-ready project description
+- Viva / judge explanation points
+
+Constraints:
+- No paid APIs
+- No cloud services
+- Must run locally
+- Beginner-friendly but hackathon-quality
+
+Guide me step-by-step and explain the logic clearly.

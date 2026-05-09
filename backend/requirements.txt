@@ -1,0 +1,11 @@
+fastapi
+uvicorn[standard]
+python-dotenv
+pymongo
+groq
+python-jose[cryptography]
+httpx
+beautifulsoup4
+supabase
+pydantic
+python-multipart
