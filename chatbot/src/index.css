@@ -198,6 +198,7 @@ input  { font-family: inherit; }
   align-items: center;
   justify-content: center;
   padding: 0 var(--space-gutter);
+
   max-width: 1024px;
   margin: 0 auto;
   width: 100%;
@@ -1622,15 +1623,14 @@ input  { font-family: inherit; }
 
 /* ─── Generic page view ──────────────────────────────────────────────── */
 .page-view {
-  justify-content: flex-start;
-  padding-top: var(--space-xl);
-  padding-bottom: var(--space-xl);
-  max-width: 680px;
-  animation: fadeSlideUp 0.4s ease both;
   overflow-y: auto;
-  max-height: calc(100vh - 80px);
+  max-height: calc(100dvh - 64px);
   width: 100%;
   scrollbar-width: none;
+  padding-top: 24px; /* Space for the title below TopBar */
+  justify-content: flex-start !important; /* Ensure content starts from top */
+  max-width: 680px;
+  animation: fadeSlideUp 0.4s ease both;
 }
 .page-view::-webkit-scrollbar {
   display: none;
@@ -3626,8 +3626,12 @@ input  { font-family: inherit; }
   max-width: 800px;
   margin: 0 auto;
   animation: fadeIn 0.4s ease;
-  min-height: 100vh;
+  min-height: calc(100dvh - 64px);
+  justify-content: flex-start !important;
+  display: flex;
+  flex-direction: column;
 }
+
 
 .history-header {
   display: flex;
