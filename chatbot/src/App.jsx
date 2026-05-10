@@ -1017,6 +1017,7 @@ export default function App() {
 
       {/* ── PWA Install Prompt ── */}
       <PWAInstallPrompt />
+    </div>
     </>
   );
 }
