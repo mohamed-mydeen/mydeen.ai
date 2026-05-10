@@ -8,8 +8,9 @@ import logging
 import asyncio
 
 from wikipedia_search import search_wikipedia
-from duckduckgo_search import search_duckduckgo
+from search_ddg import search_duckduckgo
 from jina_reader import extract_url_content
+from image_search import fetch_images_for_query
 
 logger = logging.getLogger(__name__)
 
@@ -45,6 +46,15 @@ WIKIPEDIA_TRIGGERS = [
     r"\b(theory|concept|formula|equation|law of)\b",
 ]
 
+IMAGE_TRIGGERS = [
+    r"\b(show|picture|photo|image|drawing|diagram|illustration|look like)\b",
+    r"\b(landmark|monument|building|city|country|map)\b",
+    r"\b(biology|anatomy|cell|animal|plant|flower|bird|fish|dinosaur)\b",
+    r"\b(planet|galaxy|star|space|nebula)\b",
+    r"\b(anatomy|skeleton|muscle|organ)\b",
+    r"\b(who is|who was|biography|actor|actress|singer|athlete|politician|celebrity|person)\b"
+]
+
 
 def needs_web_search(query: str) -> bool:
     """Returns True if the query requires live web data."""
@@ -63,6 +73,13 @@ def needs_wikipedia(query: str) -> bool:
             return True
     return False
 
+def needs_images(query: str) -> bool:
+    """Returns True if images would enhance the response for this query."""
+    q = query.lower()
+    for pattern in IMAGE_TRIGGERS:
+        if re.search(pattern, q, re.IGNORECASE):
+            return True
+    return False
 
 async def route_and_search(query: str) -> dict:
     """
@@ -78,6 +95,7 @@ async def route_and_search(query: str) -> dict:
     """
     use_wiki = needs_wikipedia(query)
     use_ddg  = needs_web_search(query)
+    use_img  = needs_images(query)
 
     # "who is" queries: always use BOTH Wikipedia AND DuckDuckGo
     # because Wikipedia may have stale cache but DDG gets fresh snippets
@@ -85,10 +103,10 @@ async def route_and_search(query: str) -> dict:
         use_ddg = True
 
     # If no triggers, skip search
-    if not use_wiki and not use_ddg:
-        return {"context": "", "sources": [], "searched": False}
+    if not use_wiki and not use_ddg and not use_img:
+        return {"context": "", "sources": [], "images": [], "searched": False}
 
-    logger.info(f"[SearchRouter] query='{query[:60]}' wiki={use_wiki} ddg={use_ddg}")
+    logger.info(f"[SearchRouter] query='{query[:60]}' wiki={use_wiki} ddg={use_ddg} img={use_img}")
 
     tasks = []
     labels = []
@@ -101,10 +119,15 @@ async def route_and_search(query: str) -> dict:
         tasks.append(search_duckduckgo(query, max_results=4))
         labels.append("ddg")
 
+    if use_img:
+        tasks.append(fetch_images_for_query(query, max_results=4))
+        labels.append("img")
+
     results_list = await asyncio.gather(*tasks, return_exceptions=True)
 
     wiki_results = []
     ddg_results  = []
+    img_results  = []
 
     for label, result in zip(labels, results_list):
         if isinstance(result, Exception):
@@ -114,6 +137,8 @@ async def route_and_search(query: str) -> dict:
             wiki_results = result
         elif label == "ddg":
             ddg_results = result
+        elif label == "img":
+            img_results = result
 
     # ── Jina Reader: try multiple URLs, skip paywalled/blocked ones ──────
     jina_content = None
@@ -185,5 +210,6 @@ async def route_and_search(query: str) -> dict:
     return {
         "context": context,
         "sources": all_sources,
+        "images": img_results,
         "searched": True,
     }

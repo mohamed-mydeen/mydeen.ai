@@ -2,6 +2,10 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import ReactMarkdown from "react-markdown";
 import { streamMessage, streamSearchMessage } from "../api/chatApi";
 import { useAuth } from "../context/AuthContext";
+import Suggestions from "./Suggestions";
+import FollowUps from "./FollowUps";
+
+import SmartSearchBar from "./SmartSearchBar";
 
 /* ─── Small sub-components ─────────────────────────────────────────── */
 
@@ -138,7 +142,26 @@ function MydeenLogo({ size = 72 }) {
   );
 }
 
-function ChatMessage({ role, text, sources, onEdit, onRegenerate, isLast, isStreaming, onOpenSources }) {
+/** Perplexity/ChatGPT-style Image Gallery */
+function ImageGallery({ images }) {
+  if (!images || images.length === 0) return null;
+
+  return (
+    <div className="chat-image-gallery">
+      {images.map((img, idx) => (
+        <a key={idx} href={img.source} target="_blank" rel="noopener noreferrer" className="chat-image-card">
+          <img src={img.thumbnail || img.url} alt={img.title || "Reference image"} loading="lazy" />
+          <div className="chat-image-card__overlay">
+            <span className="chat-image-card__title">{img.title || "Image"}</span>
+            <span className="chat-image-card__provider">{img.provider || getSiteName(img.source)}</span>
+          </div>
+        </a>
+      ))}
+    </div>
+  );
+}
+
+function ChatMessage({ role, text, sources, images, suggestions, onEdit, onRegenerate, isLast, isStreaming, onOpenSources, onSelectSuggestion }) {
   const [shared, setShared] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -227,7 +250,18 @@ function ChatMessage({ role, text, sources, onEdit, onRegenerate, isLast, isStre
                 </div>
               )}
             </div>
+            {!isStreaming && images && images.length > 0 && (
+              <ImageGallery images={images} />
+            )}
           </div>
+          
+          {!isStreaming && suggestions && suggestions.length > 0 && (
+            <FollowUps 
+              suggestions={suggestions} 
+              onSelect={(text) => onSelectSuggestion(text)} 
+            />
+          )}
+
           <div className="chat-msg__actions chat-msg__actions--ai">
             <button
               type="button"
@@ -301,10 +335,12 @@ function ChatMessage({ role, text, sources, onEdit, onRegenerate, isLast, isStre
 const RETRY_DELAYS = [10, 20, 30, 45];
 
 export default function Chat({ 
-  initialQuery = { text: "", isHistory: false, sessionId: null },
-  onPlusClick,
-  isPlusMenuOpen,
-  isProcessing
+  initialQuery = { text: "", isHistory: false, sessionId: null }, 
+  onPlusClick, 
+  isPlusMenuOpen, 
+  isProcessing,
+  language,
+  onVoiceClick
 }) {
   const auth = useAuth();
   const [messages, setMessages]     = useState([]);
@@ -318,8 +354,10 @@ export default function Chat({
   const [showScrollBtn, setShowScrollBtn] = useState(false);
   // ── Web Search State ────────────────────────────────────────────────────
   const [webSearchEnabled, setWebSearchEnabled] = useState(true); // ON by default
+  const [searchSources, setSearchSources] = useState([]);
+  const [searchImages, setSearchImages] = useState([]);
+  const [searchSuggestions, setSearchSuggestions] = useState([]);
   const [searchStatus, setSearchStatus]         = useState(null);
-  const [searchSources, setSearchSources]       = useState([]);
   
   // ── Drawer State ──
   const [drawerSources, setDrawerSources] = useState(null);
@@ -447,11 +485,14 @@ export default function Chat({
     setStreamingMessage("");
     setSearchStatus(null);
     setSearchSources([]);
+    setSearchImages([]);
+    setSearchSuggestions([]);
 
     (async () => {
       try {
         let fullReply = "";
         let finalSources = [];
+        let finalImages = [];
 
         if (webSearchEnabled) {
           // ── Use live web search endpoint ──────────────────────────
@@ -473,6 +514,13 @@ export default function Chat({
               setSearchSources(sources);
               setSearchStatus({ status: "generating", message: "Generating response..." });
             },
+            (images) => {
+              finalImages = images;
+              setSearchImages(images);
+            },
+            (suggestions) => {
+              setSearchSuggestions(suggestions);
+            },
             (sid) => {
               if (!sidToUse) setSessionId(sid);
             }
@@ -488,7 +536,13 @@ export default function Chat({
           });
         }
 
-        setMessages(p => [...p, { role: "assistant", text: fullReply, sources: finalSources }]);
+        setMessages(p => [...p, { 
+          role: "assistant", 
+          text: fullReply, 
+          sources: finalSources, 
+          images: finalImages,
+          suggestions: searchSuggestions
+        }]);
         setStreamingMessage("");
         setSearchStatus(null);
       } catch (err) {
@@ -548,7 +602,7 @@ export default function Chat({
         
         if (response.ok) {
           const data = await response.json();
-          setMessages(data.map(m => ({ role: m.role, text: m.content, sources: m.sources })));
+          setMessages(data.map(m => ({ role: m.role, text: m.content, sources: m.sources, images: m.images })));
           setSessionId(sid);
         }
       } catch (err) {
@@ -604,10 +658,13 @@ export default function Chat({
               role={msg.role === "assistant" ? "ai" : msg.role}
               text={msg.text}
               sources={msg.sources}
+              images={msg.images}
               onEdit={handleEdit}
               onRegenerate={handleRegenerate}
               isLast={idx === messages.length - 1}
               onOpenSources={setDrawerSources}
+              suggestions={msg.suggestions}
+              onSelectSuggestion={(text) => handleSend(text)}
             />
           ))}
 
@@ -645,8 +702,11 @@ export default function Chat({
             <ChatMessage
               role="ai"
               text={streamingMessage}
+              sources={searchSources}
+              images={searchImages}
               isStreaming={true}
               isLast={true}
+              onSelectSuggestion={(text) => handleSend(text)}
             />
           )}
 
@@ -663,97 +723,24 @@ export default function Chat({
 
       {isEmpty && (
         <div className="chat-empty">
-          <MydeenLogo size={64} />
-          <p>Ask me anything — I&apos;m ready to help you study!</p>
+          <div className="sarvam-logo-wrapper">
+             <MydeenLogo size={64} />
+          </div>
+          <Suggestions userName={auth.user?.name || "Mydeen"} onSelect={(text) => handleSend(text)} />
         </div>
       )}
 
-      <footer className="new-search-container">
-        <form
-          className="new-search-bar"
-          onSubmit={(e) => {
-            e.preventDefault();
-            handleSend();
-          }}
-        >
-          <div className="new-search-input-wrap">
-            <input
-              ref={inputRef}
-              className="new-search-input"
-              type="text"
-              placeholder={isListening ? "Listening..." : "Ask Mydeen..."}
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              disabled={loading || isProcessing}
-            />
-          </div>
-
-          <div className="new-search-actions">
-            <button 
-              type="button" 
-              aria-label="Add attachment" 
-              className={`new-search-btn-add ${isProcessing ? "new-search-btn-add--loading" : ""} ${isPlusMenuOpen ? "new-search-btn-add--active" : ""}`}
-              onClick={onPlusClick}
-              disabled={isProcessing}
-            >
-              <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>
-                {isProcessing ? "sync" : isPlusMenuOpen ? "close" : "add"}
-              </span>
-            </button>
-
-            <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-              {/* Web Search Toggle */}
-              <button
-                type="button"
-                aria-label={webSearchEnabled ? "Web search on" : "Web search off"}
-                title={webSearchEnabled ? "Live web search ON — click to disable" : "Live web search OFF — click to enable"}
-                className={`new-search-btn-mic web-search-toggle ${webSearchEnabled ? "web-search-toggle--on" : ""}`}
-                onClick={() => setWebSearchEnabled(v => !v)}
-                disabled={loading}
-                style={{ width: '32px', height: '32px' }}
-              >
-                <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>
-                  {webSearchEnabled ? "travel_explore" : "language"}
-                </span>
-              </button>
-
-              <button
-                type="button"
-                aria-label="Voice input"
-                className={`new-search-btn-mic ${isListening ? "new-search-btn-mic--active" : ""}`}
-                onClick={startListening}
-                disabled={loading || isProcessing}
-                style={{ width: '32px', height: '32px' }}
-              >
-                <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>{isListening ? "graphic_eq" : "mic"}</span>
-              </button>
-
-              {(input.trim() || isListening) && (
-                <button
-                  type="submit"
-                  className="chat-send-btn"
-                  disabled={loading || isProcessing}
-                  style={{ 
-                    position: 'static', 
-                    width: '32px', 
-                    height: '32px', 
-                    borderRadius: '50%',
-                    background: 'var(--color-primary)',
-                    color: 'var(--color-on-primary)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    transition: 'all 0.2s',
-                    marginLeft: '4px'
-                  }}
-                >
-                  <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>arrow_upward</span>
-                </button>
-              )}
-            </div>
-          </div>
-        </form>
-      </footer>
+      <SmartSearchBar 
+        onSubmit={(text) => handleSend(text)}
+        onPlusClick={onPlusClick}
+        isProcessing={loading || isProcessing}
+        isMenuOpen={isPlusMenuOpen}
+        webSearchEnabled={webSearchEnabled}
+        onToggleWebSearch={() => setWebSearchEnabled(v => !v)}
+        showChips={false} 
+        showTypewriter={false}
+        onVoiceClick={onVoiceClick}
+      />
 
 
 

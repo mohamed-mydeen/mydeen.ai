@@ -1,5 +1,42 @@
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { getMemories, updateMemories } from "../api/chatApi";
+import { VIEW } from "../constants";
+
+/* ─── Shared Components for Premium Look ─────────────────────────────── */
+
+const SettingsGroup = ({ children }) => (
+  <div className="claude-settings-group">
+    {children}
+  </div>
+);
+
+const SettingsRow = ({ icon, title, subtitle, rightElement }) => (
+  <div className="claude-settings-row">
+    <div className="claude-settings-row__left">
+      <span className="material-symbols-outlined claude-row-icon">{icon}</span>
+      <div className="claude-settings-row__text">
+        <p className="claude-row-title">{title}</p>
+        {subtitle && <p className="claude-row-subtitle">{subtitle}</p>}
+      </div>
+    </div>
+    <div className="claude-settings-row__right">
+      {rightElement}
+    </div>
+  </div>
+);
+
+const Toggle = ({ active, onClick }) => (
+  <button 
+    className={`claude-toggle ${active ? 'active' : ''}`} 
+    onClick={onClick}
+    role="switch"
+    aria-checked={active}
+  >
+    <span className="claude-toggle-thumb" />
+  </button>
+);
+
+/* ─── Main Memories Page ─────────────────────────────────────────────── */
 
 export default function MemoriesPage({ onBack }) {
   const [referenceSavedMemories, setReferenceSavedMemories] = useState(true);
@@ -39,7 +76,7 @@ export default function MemoriesPage({ onBack }) {
         occupation,
         moreAboutYou,
       });
-      setToast("Memories saved successfully!");
+      setToast("Memories updated");
       setTimeout(() => setToast(""), 2000);
     } catch (err) {
       console.error("Failed to save memories:", err);
@@ -50,8 +87,8 @@ export default function MemoriesPage({ onBack }) {
 
   if (loading) {
     return (
-      <main className="main-canvas page-view">
-        <div className="typing-indicator" style={{ margin: "auto" }}>
+      <main className="claude-settings-canvas" style={{ justifyContent: 'center', alignItems: 'center' }}>
+        <div className="typing-indicator">
           <span /><span /><span />
         </div>
       </main>
@@ -59,135 +96,120 @@ export default function MemoriesPage({ onBack }) {
   }
 
   return (
-    <main className="main-canvas page-view">
-      <div className="memories-container">
-        {/* Header with Back, Title, and Save Check */}
-        <div className="memories-header">
-          <div className="memories-header__left">
-            <button className="memories-header__btn" onClick={onBack} aria-label="Go back">
-              {/* Back icon removed */}
-            </button>
-            <h2 className="memories-header__title">Memories</h2>
-          </div>
-          <button
-            className="memories-header__save-btn"
-            onClick={handleSave}
-            disabled={saving}
-            aria-label="Save memories"
-          >
-            <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1", fontSize: 28 }}>
-              {saving ? "sync" : "check_circle"}
-            </span>
-          </button>
-        </div>
-
-        {/* Manage Memories Action Button */}
-        <button className="memories-btn-manage" onClick={() => setToast("Memory index is up to date.")}>
-          <span>Sync long-term memories</span>
-          <span className="material-symbols-outlined">sync</span>
+    <main className="claude-settings-canvas page-transition-slide">
+      {/* Header */}
+      <header className="claude-settings-header">
+        <button className="claude-header-btn" onClick={onBack}>
+          <span className="material-symbols-outlined">arrow_back</span>
         </button>
+        <h2 className="claude-header-title">Memories</h2>
+        <button className="claude-header-btn" onClick={handleSave} disabled={saving} style={{ opacity: saving ? 0.5 : 1 }}>
+          <span className="material-symbols-outlined" style={{ color: 'var(--color-brand-blue)' }}>
+            {saving ? 'sync' : 'done'}
+          </span>
+        </button>
+      </header>
 
-        {/* Reference Saved Memories Toggle */}
-        <div className="settings-item">
-          <div className="settings-item__info">
-            <span className="material-symbols-outlined">psychology</span>
-            <div>
-              <p className="settings-item__name">Reference saved memories</p>
-              <p className="settings-item__desc">Lets Mydeen AI save and use memories when responding.</p>
-            </div>
-          </div>
-          <button
-            className={`toggle ${referenceSavedMemories ? "toggle--on" : ""}`}
-            onClick={() => setReferenceSavedMemories(v => !v)}
-            role="switch"
-            aria-checked={referenceSavedMemories}
-            aria-label="Reference saved memories"
-          >
-            <span className="toggle__thumb" />
-          </button>
-        </div>
-
-        {/* Reference Chat History Toggle */}
-        <div className="settings-item">
-          <div className="settings-item__info">
-            <span className="material-symbols-outlined">history</span>
-            <div>
-              <p className="settings-item__name">Reference Chat History</p>
-              <p className="settings-item__desc">Lets Mydeen AI reference recent conversations when responding.</p>
-            </div>
-          </div>
-          <button
-            className={`toggle ${referenceChatHistory ? "toggle--on" : ""}`}
-            onClick={() => setReferenceChatHistory(v => !v)}
-            role="switch"
-            aria-checked={referenceChatHistory}
-            aria-label="Reference chat history"
-          >
-            <span className="toggle__thumb" />
-          </button>
-        </div>
-
-        {/* Nickname Input */}
-        <div className="memories-section">
-          <label className="memories-section__label">Your nickname</label>
-          <input
-            type="text"
-            className="memories-input"
-            value={nickname}
-            onChange={(e) => setNickname(e.target.value)}
-            placeholder="What should I call you?"
-          />
-        </div>
-
-        {/* Occupation Input */}
-        <div className="memories-section">
-          <label className="memories-section__label">Your occupation</label>
-          <input
-            type="text"
-            className="memories-input"
-            value={occupation}
-            onChange={(e) => setOccupation(e.target.value)}
-            placeholder="e.g. Software developer, College student"
-          />
-        </div>
-
-        {/* More About You Textarea */}
-        <div className="memories-section">
-          <label className="memories-section__label">More about you</label>
-          <textarea
-            className="memories-textarea"
-            value={moreAboutYou}
-            onChange={(e) => setMoreAboutYou(e.target.value)}
-            placeholder="Interests, values, or preferences to keep in mind"
-          />
-        </div>
+      <div className="claude-settings-scroll-area">
         
-        {/* Explicit Save Button for UX */}
-        <div className="memories-footer-action">
+        {/* Memory Control Card */}
+        <SettingsGroup>
+          <SettingsRow 
+            icon="psychology" 
+            title="Reference memories" 
+            subtitle="Let Mydeen AI save and use memories"
+            rightElement={
+              <Toggle 
+                active={referenceSavedMemories} 
+                onClick={() => setReferenceSavedMemories(!referenceSavedMemories)} 
+              />
+            }
+          />
+          <SettingsRow 
+            icon="history" 
+            title="Reference chat history" 
+            subtitle="Context from recent conversations"
+            rightElement={
+              <Toggle 
+                active={referenceChatHistory} 
+                onClick={() => setReferenceChatHistory(!referenceChatHistory)} 
+              />
+            }
+          />
+        </SettingsGroup>
+
+        {/* Sync Button Card */}
+        <div 
+          className="claude-account-card claude-settings-row--clickable" 
+          onClick={() => setToast("Memory index is up to date.")}
+          style={{ cursor: 'pointer' }}
+        >
+          <div className="claude-settings-row__left">
+            <span className="material-symbols-outlined claude-row-icon">sync</span>
+            <p className="claude-row-title">Sync long-term memories</p>
+          </div>
+          <span className="material-symbols-outlined claude-chevron">chevron_right</span>
+        </div>
+
+        {/* Personal Details Card */}
+        <SettingsGroup>
+          <div className="claude-settings-row" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: '16px', padding: '20px' }}>
+            <div style={{ width: '100%' }}>
+              <p className="claude-row-title" style={{ marginBottom: '8px', fontSize: '14px', color: '#888888' }}>YOUR NICKNAME</p>
+              <input 
+                type="text" 
+                className="claude-input-premium" 
+                value={nickname}
+                onChange={(e) => setNickname(e.target.value)}
+                placeholder="What should I call you?"
+              />
+            </div>
+            
+            <div style={{ width: '100%' }}>
+              <p className="claude-row-title" style={{ marginBottom: '8px', fontSize: '14px', color: '#888888' }}>YOUR OCCUPATION</p>
+              <input 
+                type="text" 
+                className="claude-input-premium" 
+                value={occupation}
+                onChange={(e) => setOccupation(e.target.value)}
+                placeholder="e.g. Software developer, College student"
+              />
+            </div>
+
+            <div style={{ width: '100%' }}>
+              <p className="claude-row-title" style={{ marginBottom: '8px', fontSize: '14px', color: '#888888' }}>MORE ABOUT YOU</p>
+              <textarea 
+                className="claude-input-premium" 
+                style={{ minHeight: '100px', resize: 'none', paddingTop: '12px' }}
+                value={moreAboutYou}
+                onChange={(e) => setMoreAboutYou(e.target.value)}
+                placeholder="Interests, values, or preferences..."
+              />
+            </div>
+          </div>
+        </SettingsGroup>
+
+        {/* Save Button Card */}
+        <div style={{ marginTop: '8px' }}>
           <button 
-            className="memories-save-full-btn" 
+            className="claude-upgrade-btn" 
+            style={{ width: '100%', borderRadius: '12px', padding: '16px' }}
             onClick={handleSave}
             disabled={saving}
           >
-            {saving ? (
-              <>
-                <span className="material-symbols-outlined spin">sync</span>
-                Saving...
-              </>
-            ) : (
-              <>
-                <span className="material-symbols-outlined">save</span>
-                Save Memories
-              </>
-            )}
+            {saving ? 'Updating...' : 'Save All Memories'}
           </button>
+        </div>
+
+        <div className="claude-settings-footer">
+          <p>Mydeen AI learns from your preferences to provide better help.</p>
         </div>
       </div>
 
       {/* Toast Notification */}
       {toast && (
-        <div className="memories-toast" role="status">
-          <span className="material-symbols-outlined">check_circle</span>
+        <div className="claude-toast">
+          <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>check_circle</span>
           <span>{toast}</span>
         </div>
       )}

@@ -9,6 +9,7 @@ def build_search_aware_prompt(
     user_query: str,
     search_context: str,
     sources: list[dict],
+    images: list[dict] = None,
 ) -> list[dict]:
     """
     Injects retrieved web context into the system prompt so the AI
@@ -44,7 +45,17 @@ LIVE WEB SEARCH RESULTS (Retrieved just now — {__import__('datetime').datetime
 5. Be direct and confident. Synthesize the retrieved info into a clear, single answer. Do not hedge by saying "the exact name is not mentioned" if you can clearly infer it from the context (e.g., if a party leader just won the state election, they are the Chief Minister).
 6. Do NOT say "As of my last update" or "I don't have real-time data" — you DO have it above.
 """
+    if images and len(images) > 0:
+        injected_system += f"""
+7. 🖼️ VISUAL SEARCH SUCCESS: High-quality images for the user's request have already been fetched by the backend and are CURRENTLY VISIBLE to the user in a beautiful image gallery component directly below your response.
+   - DO NOT apologize or say "I am a text-based AI" or "I cannot display images".
+   - DO NOT tell the user to "Google it" or "go to Unsplash".
+   - DO acknowledge the images naturally, e.g., "Here are some stunning pictures of [Topic]." or "As you can see in the images provided..."
+   - Provide a highly engaging, descriptive text response that complements the visual gallery they are seeing.
+"""
+
     return [{"role": "system", "content": injected_system}]
+
 
 
 def format_sources_for_response(sources: list[dict]) -> str:

@@ -11,6 +11,11 @@ import ActionPills from "./components/ActionPills";
 import Chat        from "./components/Chat";
 import LoginPage   from "./components/LoginPage";
 import MemoriesPage from "./components/MemoriesPage";
+import SettingsPage from "./components/SettingsPage";
+import AboutPage from "./components/AboutPage";
+import ProfilePage from "./components/ProfilePage";
+import SmartSearchBar from "./components/SmartSearchBar";
+import VoiceAssistant from "./components/VoiceAssistant";
 import { VIEW }    from "./constants";
 import { useTheme } from "./context/ThemeContext";
 import { useAuth }  from "./context/AuthContext";
@@ -32,124 +37,6 @@ function MydeenLogo() {
       <circle cx="50" cy="50" fill="none" opacity="0.6" r="30" stroke="url(#logo-grad)" strokeWidth="1.5"></circle>
       <circle cx="50" cy="50" fill="none" opacity="0.3" r="40" stroke="url(#logo-grad)" strokeWidth="1"></circle>
     </svg>
-  );
-}
-
-function NewSearchBar({ onSubmit, onPlusClick, isProcessing, isMenuOpen }) {
-  const [query, setQuery] = useState("");
-  const [isListening, setIsListening] = useState(false);
-
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    if (query.trim()) onSubmit?.(query.trim());
-  };
-
-  const handleKeyDown = (e) => {
-    if (e.key === "Enter") {
-      handleSubmit(e);
-    }
-  };
-
-  const startListening = () => {
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SpeechRecognition) {
-      alert("Voice recognition is not supported in this browser.");
-      return;
-    }
-
-    const recognition = new SpeechRecognition();
-    recognition.lang = 'en-US';
-    recognition.interimResults = false;
-
-    recognition.onstart = () => {
-      setIsListening(true);
-    };
-
-    recognition.onresult = (event) => {
-      const transcript = event.results[0][0].transcript;
-      setQuery(transcript);
-      setIsListening(false);
-    };
-
-    recognition.onerror = (event) => {
-      console.error("Speech recognition error:", event.error);
-      setIsListening(false);
-    };
-
-    recognition.onend = () => {
-      setIsListening(false);
-    };
-
-    recognition.start();
-  };
-
-  return (
-    <footer className="new-search-container">
-      <form className="new-search-bar" onSubmit={handleSubmit}>
-        <div className="new-search-input-wrap">
-          <input
-            className="new-search-input"
-            type="text"
-            placeholder={
-              isProcessing ? "Reading your image..." : 
-              isListening ? "Listening..." : "Ask Mydeen"
-            }
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            onKeyDown={handleKeyDown}
-            disabled={isProcessing}
-          />
-        </div>
-        <div className="new-search-actions">
-          <button 
-            type="button" 
-            aria-label="Add attachment" 
-            className={`new-search-btn-add ${isProcessing ? "new-search-btn-add--loading" : ""} ${isMenuOpen ? "new-search-btn-add--active" : ""}`}
-            onClick={onPlusClick}
-            disabled={isProcessing}
-          >
-            <span className="material-symbols-outlined">
-              {isProcessing ? "sync" : isMenuOpen ? "close" : "add"}
-            </span>
-          </button>
-
-          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-            <button
-              type="button"
-              aria-label="Voice input"
-              className={`new-search-btn-mic ${isListening ? "new-search-btn-mic--active" : ""}`}
-              onClick={startListening}
-              disabled={isProcessing}
-              style={{ width: '36px', height: '36px' }}
-            >
-              <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>{isListening ? "graphic_eq" : "mic"}</span>
-            </button>
-
-            {query.trim() && (
-              <button
-                type="submit"
-                className="chat-send-btn"
-                disabled={isProcessing}
-                style={{ 
-                  position: 'static', 
-                  width: '36px', 
-                  height: '36px', 
-                  borderRadius: '50%',
-                  background: 'var(--color-primary)',
-                  color: 'var(--color-on-primary)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  transition: 'all 0.2s'
-                }}
-              >
-                <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>arrow_upward</span>
-              </button>
-            )}
-          </div>
-        </div>
-      </form>
-    </footer>
   );
 }
 
@@ -215,286 +102,6 @@ function NewHome({ onNavigate, onGoToChat }) {
           </button>
         ))}
       </div>
-    </main>
-  );
-}
-
-/* Premium Dropdown Component */
-function PremiumSelect({ value, options, onChange }) {
-  const [isOpen, setIsOpen] = useState(false);
-  const dropdownRef = useRef(null);
-
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
-        setIsOpen(false);
-      }
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
-
-  return (
-    <div className="premium-dropdown" ref={dropdownRef}>
-      <div className="premium-dropdown__selected" onClick={() => setIsOpen(!isOpen)}>
-        <span style={{ fontFamily: value !== 'Default' ? value : 'inherit' }}>{value}</span>
-        <span className="material-symbols-outlined">
-          {isOpen ? 'expand_less' : 'expand_more'}
-        </span>
-      </div>
-      {isOpen && (
-        <div className="premium-dropdown__menu">
-          {options.map((opt) => (
-            <div
-              key={opt}
-              className={`premium-dropdown__option ${value === opt ? 'premium-dropdown__option--active' : ''}`}
-              style={{ fontFamily: opt !== 'Default' ? opt : 'inherit' }}
-              onClick={() => {
-                onChange(opt);
-                setIsOpen(false);
-              }}
-            >
-              {opt}
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-/* VIEW is imported from ./constants */
-
-/* ─── Profile Page ───────────────────────────────────────────────────── */
-/* ProfilePage removed as per user request. Details merged into Settings. */
-
-function SettingsPage({ onNavigate, onLogout, onClearHistory, language, setLanguage }) {
-  const { user: supaUser } = useAuth();
-  const [notifications, setNotifications] = useState(true);
-  
-  // Customization States
-  const [accentColor, setAccentColor] = useState(() => localStorage.getItem("accent_color") || "#3b82f6");
-  const [fontFamily, setFontFamily]   = useState(() => localStorage.getItem("font_family") || "Inter");
-  const [phone, setPhone]             = useState(() => localStorage.getItem("user_phone") || supaUser?.phone || "");
-
-  useEffect(() => {
-    document.documentElement.style.setProperty('--color-brand-blue', accentColor);
-    localStorage.setItem("accent_color", accentColor);
-  }, [accentColor]);
-
-  useEffect(() => {
-    document.documentElement.style.setProperty('--font-main', `'${fontFamily}', sans-serif`);
-    localStorage.setItem("font_family", fontFamily);
-  }, [fontFamily]);
-
-  useEffect(() => {
-    localStorage.setItem("user_phone", phone);
-  }, [phone]);
-
-  useEffect(() => {
-    localStorage.setItem("user_language", language);
-  }, [language]);
-
-  const displayName  = supaUser?.user_metadata?.full_name || supaUser?.user_metadata?.name || "User";
-  const displayEmail = supaUser?.email || "";
-
-  const ACCENT_COLORS = [
-    { name: 'Blue', color: '#3b82f6' },
-    { name: 'Purple', color: '#8b5cf6' },
-    { name: 'Emerald', color: '#10b981' },
-    { name: 'Rose', color: '#f43f5e' },
-    { name: 'Amber', color: '#f59e0b' },
-    { name: 'Indigo', color: '#6366f1' },
-    { name: 'Teal', color: '#14b8a6' },
-    { name: 'Slate', color: '#64748b' }
-  ];
-
-  const FONT_OPTIONS = ["Inter", "Poppins", "Outfit", "Montserrat", "Lexend", "Roboto", "Playfair Display", "JetBrains Mono"];
-  const LANG_OPTIONS = ["English", "Tamil", "Arabic", "Hindi", "French"];
-
-  return (
-    <main className="main-canvas page-view" id="settings-page">
-      <div className="page-header">
-        <span className="material-symbols-outlined page-header__icon">settings</span>
-        <h2 className="page-header__title">Settings</h2>
-      </div>
-
-      <div className="settings-group">
-        <h3 className="settings-group__label">Profile</h3>
-        <div className="settings-item">
-          <div className="settings-item__info">
-            <span className="material-symbols-outlined">person</span>
-            <div>
-              <p className="settings-item__name">Username</p>
-              <p className="settings-item__desc">{displayName}</p>
-            </div>
-          </div>
-        </div>
-        <div className="settings-item">
-          <div className="settings-item__info">
-            <span className="material-symbols-outlined">mail</span>
-            <div>
-              <p className="settings-item__name">Email</p>
-              <p className="settings-item__desc">{displayEmail}</p>
-            </div>
-          </div>
-        </div>
-        <div className="settings-item">
-          <div className="settings-item__info">
-            <span className="material-symbols-outlined">phone</span>
-            <div>
-              <p className="settings-item__name">Phone Number</p>
-              <input 
-                type="tel" 
-                className="settings-input-premium" 
-                value={phone} 
-                onChange={(e) => setPhone(e.target.value)}
-                placeholder="Enter phone number"
-              />
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="settings-group">
-        <h3 className="settings-group__label">Appearance</h3>
-        
-        <div className="settings-item" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: '16px' }}>
-          <div className="settings-item__info">
-            <span className="material-symbols-outlined">palette</span>
-            <div>
-              <p className="settings-item__name">Accent Color</p>
-              <p className="settings-item__desc">Choose your preferred brand color</p>
-            </div>
-          </div>
-          <div className="color-pills-container">
-            {ACCENT_COLORS.map(c => (
-              <button 
-                key={c.color}
-                className={`color-pill ${accentColor === c.color ? 'active' : ''}`}
-                style={{ backgroundColor: c.color }}
-                onClick={() => setAccentColor(c.color)}
-                title={c.name}
-              />
-            ))}
-          </div>
-        </div>
-
-        <div className="settings-item">
-          <div className="settings-item__info">
-            <span className="material-symbols-outlined">font_download</span>
-            <div>
-              <p className="settings-item__name">Font Style</p>
-              <p className="settings-item__desc">Choose a professional typeface</p>
-            </div>
-          </div>
-          <PremiumSelect value={fontFamily} options={FONT_OPTIONS} onChange={setFontFamily} />
-        </div>
-      </div>
-
-      <div className="settings-group">
-        <h3 className="settings-group__label">Preferences</h3>
-
-        <div className="settings-item" onClick={() => onNavigate(VIEW.MEMORIES)} style={{ cursor: "pointer" }}>
-          <div className="settings-item__info">
-            <span className="material-symbols-outlined">psychology</span>
-            <div>
-              <p className="settings-item__name">Manage Memories</p>
-              <p className="settings-item__desc">Customize how Mydeen AI remembers you</p>
-            </div>
-          </div>
-          <span className="material-symbols-outlined" style={{ color: "var(--color-on-surface-variant)" }}>chevron_right</span>
-        </div>
-      </div>
-
-      <div className="settings-group">
-        <h3 className="settings-group__label">Account & Data</h3>
-        <div className="settings-item">
-          <div className="settings-item__info">
-            <span className="material-symbols-outlined">logout</span>
-            <div>
-              <p className="settings-item__name">Logout</p>
-              <p className="settings-item__desc">Sign out of your account</p>
-            </div>
-          </div>
-          <button type="button" className="settings-btn settings-btn--danger" onClick={onLogout}>Logout</button>
-        </div>
-
-        <div className="settings-item">
-          <div className="settings-item__info">
-            <span className="material-symbols-outlined">delete_sweep</span>
-            <div>
-              <p className="settings-item__name">Clear Recent Chats</p>
-              <p className="settings-item__desc">Remove all saved conversations</p>
-            </div>
-          </div>
-          <button type="button" className="settings-btn settings-btn--danger" onClick={onClearHistory}>Clear</button>
-        </div>
-      </div>
-    </main>
-  );
-}
-
-/* ─── About Page ─────────────────────────────────────────────────────── */
-function AboutPage() {
-  return (
-    <main className="main-canvas page-view" id="about-page" style={{ padding: '40px 20px', maxWidth: '640px', margin: '0 auto' }}>
-      
-      {/* Header section: sleek, text-driven */}
-      <div style={{ marginBottom: '48px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '24px' }}>
-          <MydeenLogo size={42} />
-          <div>
-            <h2 style={{ fontSize: '22px', fontWeight: '500', color: 'var(--color-on-surface)', letterSpacing: '-0.02em', margin: 0 }}>Mydeen AI</h2>
-            <p style={{ fontSize: '13px', color: 'var(--color-on-surface-variant)', marginTop: '4px', letterSpacing: '0.02em' }}>VERSION 1.1.0</p>
-          </div>
-        </div>
-        <p style={{ fontSize: '15px', color: 'var(--color-on-surface)', lineHeight: '1.6', maxWidth: '540px', fontWeight: '400' }}>
-          Engineered with precision to act as your ultimate personal study assistant. Built to help you learn faster, understand complex concepts deeply, and ace your exams with total confidence.
-        </p>
-      </div>
-
-      {/* Capabilities: minimalist list, no boxy borders */}
-      <div style={{ marginBottom: '48px' }}>
-        <h3 style={{ fontSize: '12px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--color-on-surface-variant)', marginBottom: '20px' }}>Capabilities</h3>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-          {[
-            { icon: "auto_awesome",    text: "AI-powered explanations", desc: "State-of-the-art intelligent synthesis and generation." },
-            { icon: "travel_explore",  text: "Live Web Search", desc: "Real-time data retrieval for up-to-the-minute accuracy." },
-            { icon: "edit_note",       text: "Smart note generation", desc: "Instant lecture summarization and key takeaways." },
-            { icon: "quiz",            text: "Exam-focused Q&A", desc: "Rigorous practice with dynamically generated test questions." },
-          ].map(f => (
-            <div key={f.text} style={{ display: 'flex', gap: '16px', alignItems: 'flex-start' }}>
-              <span className="material-symbols-outlined" style={{ color: 'var(--color-on-surface-variant)', fontSize: '20px', marginTop: '2px' }}>{f.icon}</span>
-              <div>
-                <p style={{ fontSize: '14px', fontWeight: '500', color: 'var(--color-on-surface)', marginBottom: '4px' }}>{f.text}</p>
-                <p style={{ fontSize: '13px', color: 'var(--color-on-surface-variant)', lineHeight: '1.5' }}>{f.desc}</p>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Developer info: clean, subtle card */}
-      <div style={{ marginBottom: '48px' }}>
-        <h3 style={{ fontSize: '12px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--color-on-surface-variant)', marginBottom: '20px' }}>Developer</h3>
-        <div style={{ padding: '20px', background: 'var(--color-surface-container-low)', borderRadius: '12px', display: 'flex', gap: '16px', alignItems: 'flex-start' }}>
-          <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: 'var(--color-surface-container-highest)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-on-surface)', fontSize: '16px', fontWeight: '500', flexShrink: 0 }}>
-            M
-          </div>
-          <div>
-            <p style={{ fontSize: '15px', fontWeight: '500', color: 'var(--color-on-surface)', marginBottom: '2px' }}>Mohamed Mydeen S</p>
-            <p style={{ fontSize: '13px', color: 'var(--color-on-surface-variant)', marginBottom: '12px' }}>Full Stack Developer & AI Enthusiast</p>
-            <p style={{ fontSize: '13px', color: 'var(--color-on-surface-variant)', lineHeight: '1.5', marginBottom: '16px' }}>
-              Focused on crafting seamless, premium AI experiences. Mydeen AI leverages cutting-edge LLMs and real-time integrations to provide an unparalleled learning ecosystem.
-            </p>
-            <a href="https://mydeen.vercel.app/" target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '13px', fontWeight: '500', color: 'var(--color-primary)', textDecoration: 'none' }}>
-              View Portfolio <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>arrow_outward</span>
-            </a>
-          </div>
-        </div>
-      </div>
-
     </main>
   );
 }
@@ -690,6 +297,7 @@ export default function App() {
   const [safetyTargetUrl, setSafetyTargetUrl] = useState("");
   const [safetyResult, setSafetyResult] = useState(null);
   const [urlInput, setUrlInput] = useState("");
+  const [showVoice, setShowVoice] = useState(false);
   const fileInputRef = useRef(null);
 
   /* ── Fetch history from Database ── */
@@ -1064,7 +672,7 @@ export default function App() {
 
       {/* ── Pages ── */}
       {view === VIEW.HOME && (
-        <div className="home-layout-wrapper">
+        <div className="home-layout-wrapper page-transition">
           {isChatActive ? (
             <Chat 
               initialQuery={initialQuery} 
@@ -1072,16 +680,18 @@ export default function App() {
               isPlusMenuOpen={isPlusMenuOpen}
               isProcessing={isProcessing}
               language={language}
+              onVoiceClick={() => setShowVoice(true)}
             />
           ) : (
             <>
               <NewHome onNavigate={navigate} onGoToChat={goToChat} />
               
-              <NewSearchBar 
+              <SmartSearchBar 
                 onSubmit={goToChat} 
                 onPlusClick={handlePlusClick}
                 isProcessing={isProcessing}
                 isMenuOpen={isPlusMenuOpen}
+                onVoiceClick={() => setShowVoice(true)}
               />
             </>
           )}
@@ -1241,7 +851,7 @@ export default function App() {
     )}
 
       {view === VIEW.HISTORY && (
-        <main className="main-canvas history-page" id="history-page">
+        <main className="main-canvas history-page page-transition" id="history-page">
           <div className="history-header">
             <div className="history-header__info">
               <span className="material-symbols-outlined history-header__icon">history</span>
@@ -1301,6 +911,7 @@ export default function App() {
       )}
 
       {view === VIEW.SETTINGS && <SettingsPage onNavigate={navigate} onLogout={() => setShowLogoutConfirm(true)} onClearHistory={() => setShowClearHistoryConfirm(true)} language={language} setLanguage={setLanguage} />}
+      {view === VIEW.PROFILE  && <ProfilePage onNavigate={navigate} />}
       {view === VIEW.MEMORIES && <MemoriesPage onBack={() => navigate(VIEW.SETTINGS)} />}
       {view === VIEW.ABOUT    && <AboutPage />}
 
@@ -1364,6 +975,12 @@ export default function App() {
         accept=".pdf" 
         onChange={handlePdfUpload} 
       />
+
+
+      {/* ── Voice Assistant Overlay ── */}
+      {showVoice && (
+        <VoiceAssistant onClose={() => setShowVoice(false)} />
+      )}
     </div>
   );
 }

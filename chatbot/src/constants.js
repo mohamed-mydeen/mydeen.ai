@@ -7,5 +7,6 @@ export const VIEW = {
   MEMORIES: "memories",
   SAFETY_ANALYSIS: "safety_analysis",
   PROFILE:  "profile",
+  VOICE:    "voice",
 };
 

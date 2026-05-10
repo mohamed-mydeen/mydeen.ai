@@ -166,6 +166,8 @@ export async function streamSearchMessage(
   onChunk,
   onStatus,
   onSources,
+  onImages,
+  onSuggestions,
   onSession
 ) {
   const { data: { session } } = await supabase.auth.getSession();
@@ -210,6 +212,8 @@ export async function streamSearchMessage(
         if (parsed.session_id && onSession) onSession(parsed.session_id);
         if (parsed.status && onStatus)      onStatus({ status: parsed.status, message: parsed.message });
         if (parsed.sources && onSources)    onSources(parsed.sources);
+        if (parsed.images && onImages)      onImages(parsed.images);
+        if (parsed.suggestions && onSuggestions) onSuggestions(parsed.suggestions);
         if (parsed.text && onChunk)         onChunk(parsed.text);
         if (parsed.error)                   throw new Error(parsed.error);
       } catch (e) {

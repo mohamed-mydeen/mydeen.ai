@@ -34,17 +34,18 @@ from pathlib import Path
 from supabase import create_client, Client
 load_dotenv()
 
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
 # ── Live Search Modules ────────────────────────────────────────────────
 try:
-    from search_router import route_and_search, needs_web_search
+    from search_router import route_and_search, needs_web_search, needs_wikipedia, needs_images
     from prompt_builder import build_search_aware_prompt, format_sources_for_response
     SEARCH_AVAILABLE = True
 except ImportError as e:
     logger.warning(f"Search modules not available: {e}")
     SEARCH_AVAILABLE = False
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
 
 # Add the Deceptive Website Detector to path
 DETECTOR_PATH = Path(__file__).parent.parent / "seasonal-deceptive-website-detector-main" / "seasonal-deceptive-website-detector"
@@ -552,7 +553,9 @@ async def get_session_messages(session_id: str, user_email: str = Depends(verify
             
             return [{
                 "role": "ai" if m["role"] in ["assistant", "ai"] else m["role"], 
-                "content": m["content"]
+                "content": m["content"],
+                "sources": m.get("sources", []),
+                "images": m.get("images", [])
             } for m in session_rows]
         else:
             try:
@@ -595,7 +598,8 @@ async def get_session_messages(session_id: str, user_email: str = Depends(verify
                     return [{
                         "role": "ai" if m["role"] in ["assistant", "ai"] else m["role"], 
                         "content": m["content"],
-                        "sources": m.get("sources", [])
+                        "sources": m.get("sources", []),
+                        "images": m.get("images", [])
                     } for m in s]
 
             return []
@@ -647,7 +651,7 @@ def update_memories(body: MemoriesModel, username: str = Depends(verify_token)):
     save_users(users)
     return {"status": "success", "memories": body}
 
-def save_to_db(user_email: str, role: str, content: str, session_id: str = None, session_title: str = None, sources: list = None):
+def save_to_db(user_email: str, role: str, content: str, session_id: str = None, session_title: str = None, sources: list = None, images: list = None):
     """Background helper to save chat to MongoDB"""
     if chat_history_col is None:
         return
@@ -662,6 +666,7 @@ def save_to_db(user_email: str, role: str, content: str, session_id: str = None,
         if session_id: data["session_id"] = session_id
         if session_title: data["session_title"] = session_title
         if sources: data["sources"] = sources
+        if images: data["images"] = images
         chat_history_col.insert_one(data)
     except Exception as e:
         logger.error(f"❌ Failed to save to DB: {e}")
@@ -850,36 +855,40 @@ async def chat_search_stream(
     async def worker():
         full_reply = []
         sources = []
+        images = []
         try:
             # Step 1: Emit session ID
             await queue.put(json.dumps({"session_id": session_id}))
 
             # Step 2: Detect and run web search
-            do_search = SEARCH_AVAILABLE and (body.force_search or needs_web_search(body.message))
+            do_search = SEARCH_AVAILABLE and (body.force_search or needs_web_search(body.message) or needs_wikipedia(body.message) or needs_images(body.message))
 
             if do_search:
                 await queue.put(json.dumps({"status": "searching", "message": "Searching sources..."}))
                 try:
                     search_result = await route_and_search(body.message)
                     sources = search_result.get("sources", [])
+                    images = search_result.get("images", [])
                     context = search_result.get("context", "")
 
-                    if sources:
+                    if sources or images:
                         await queue.put(json.dumps({
                             "status": "sources_found",
                             "sources": sources,
-                            "message": f"Found {len(sources)} sources"
+                            "images": images,
+                            "message": f"Found {len(sources)} sources and {len(images)} images"
                         }))
                 except Exception as search_err:
                     logger.warning(f"Search failed, falling back to model only: {search_err}")
                     context = ""
                     sources = []
+                    images = []
             else:
                 context = ""
 
             # Step 3: Build messages with injected context
             base_messages = build_history(body.history, user, users) if not do_search else \
-                build_search_aware_prompt(SYSTEM_PROMPT, body.message, context, sources)
+                build_search_aware_prompt(SYSTEM_PROMPT, body.message, context, sources, images)
 
             # Add conversation history for context
             if do_search and body.history:
@@ -913,10 +922,41 @@ async def chat_search_stream(
                     # The frontend SourcesBar component renders them as premium UI
 
                     # Save to DB
+                    final_text = "".join(full_reply)
                     if chat_history_col is not None and full_reply:
                         background_tasks.add_task(
-                            save_to_db, user, "assistant", "".join(full_reply), session_id, session_title, sources
+                            save_to_db, user, "assistant", final_text, session_id, session_title, sources, images
                         )
+
+                    # Step 4: Generate contextual follow-up suggestions
+                    try:
+                        suggestion_prompt = f"Based on the user's query: '{body.message}' and the assistant's response: '{final_text[:400]}...', generate 3 brief, engaging follow-up questions the user might ask next. Return ONLY the questions, one per line, no numbers, no explanation."
+                        sug_res = await client.chat.completions.create(
+                            model="llama-3.1-8b-instant", # Fast model for utility tasks
+                            messages=[{"role": "system", "content": "You are a helpful assistant that generates follow-up questions."},
+                                      {"role": "user", "content": suggestion_prompt}],
+                            temperature=0.7,
+                            max_tokens=100
+                        )
+                        sug_text = sug_res.choices[0].message.content
+                        import re
+                        cleaned_sugs = []
+                        for line in sug_text.split('\n'):
+                            line = line.strip()
+                            if not line or line.lower().startswith(('here', 'follow', 'sure', 'certainly')): continue
+                            # Remove numbering like "1. ", "1)", etc.
+                            line = re.sub(r'^\d+[\s.)-]*', '', line)
+                            # Remove bullets like "- ", "* ", "+ "
+                            line = re.sub(r'^[*+-]\s*', '', line)
+                            line = line.strip()
+                            if line and len(line) > 10: # Ensure it's a meaningful question
+                                cleaned_sugs.append(line)
+                        
+                        suggestions = cleaned_sugs[:3]
+                        if suggestions:
+                            await queue.put(json.dumps({"suggestions": suggestions}))
+                    except Exception as sug_err:
+                        logger.warning(f"Follow-up generation failed: {sug_err}")
 
                     await queue.put("[DONE]")
                     return
@@ -1043,3 +1083,4 @@ async def detect_deceptive(body: DetectRequest, user: str = Depends(verify_token
     except Exception as e:
         logger.error(f"Detection failed for {url}: {e}")
         raise HTTPException(status_code=400, detail=f"Detection failed: {str(e)[:100]}")
+ 

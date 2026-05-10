@@ -4,5 +4,15 @@
   "mydeen": "7859a4f64567a7dbf08c4ea469c1b207:9a5f5c2f5bf99633bebdb5de9469de3e930099d7b257f0db2b3cc7ea318e71e9",
   "mohamed": "0607b74f08725dca94d02c8c62d1d7d1:3a988bb08c4d4087cd41ae807f349038778a58f2c4933f963b287de37fa1a77a",
   "hafiz": "6dbda8f56152502aedadd8ffde99d626:0a7365adcf286e28a07a722c868417858a87d3e526bc66b05ae4108efb5575f0",
-  "ukasha": "2b407b7df51f352717be5b93eec7bac0:5f9f26bce9c6418ca12aedbb12f9537ae0586faf798c868ee943f8df85d0c14d"
+  "ukasha": "2b407b7df51f352717be5b93eec7bac0:5f9f26bce9c6418ca12aedbb12f9537ae0586faf798c868ee943f8df85d0c14d",
+  "mohamed@gmail.com": {
+    "password": null,
+    "memories": {
+      "referenceSavedMemories": true,
+      "referenceChatHistory": true,
+      "nickname": "",
+      "occupation": "",
+      "moreAboutYou": ""
+    }
+  }
 }
