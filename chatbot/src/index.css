@@ -6373,38 +6373,47 @@ body {
   backdrop-filter: blur(25px) saturate(180%);
   -webkit-backdrop-filter: blur(25px) saturate(180%);
   border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 20px;
-  padding: 8px 16px;
+  border-radius: 28px;
+  padding: 6px 8px 6px 14px;
   box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
   display: flex;
   align-items: center;
   transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  width: 100%;
 }
 
-.ios-glass-bar:focus-within {
-  background: rgba(255, 255, 255, 0.1);
-  border-color: rgba(255, 255, 255, 0.2);
-  transform: translateY(-2px);
+.smart-input-left {
+  display: flex;
+  align-items: center;
+  margin-right: 12px;
+  flex-shrink: 0;
+}
+
+.new-search-input-wrap {
+  flex: 1;
+  min-width: 0;
+}
+
+.new-search-actions-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  margin-left: 8px;
 }
 
 .smart-action-btn {
-  width: 36px;
-  height: 36px;
+  width: 34px;
+  height: 34px;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
   background: rgba(255, 255, 255, 0.05);
   border: 1px solid rgba(255, 255, 255, 0.08);
-  color: #fff;
+  color: rgba(255, 255, 255, 0.7);
   cursor: pointer;
   transition: all 0.2s ease;
-}
-
-.smart-action-btn.active {
-  background: var(--color-brand-blue);
-  border-color: var(--color-brand-blue);
-  color: #fff;
 }
 
 .smart-action-btn:hover {
@@ -7866,8 +7875,68 @@ textarea {
   transition: all 0.5s ease;
 }
 
-/* Cleanup old boxy settings */
-.voice-v2-settings-panel { display: none; }
+/* Premium Particle Swarm Animation */
+.v2-orb-particles-container {
+  position: absolute;
+  inset: 0;
+  animation: v2Rotate 20s linear infinite;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.v2-orb-particles--slow {
+  animation: v2Rotate 35s linear infinite reverse;
+  opacity: 0.5;
+}
+
+.v2-particle-premium {
+  position: absolute;
+  width: 2.5px;
+  height: 2.5px;
+  border-radius: 50%;
+  /* Mathematical spiral distribution */
+  --angle: calc(var(--i) * 137.5deg);
+  --radius: calc(35% * sqrt(var(--i) / var(--total)));
+  transform: 
+    rotate(var(--angle)) 
+    translateY(var(--radius))
+    scale(calc(0.5 + (var(--i) / var(--total)) * 0.5));
+  
+  opacity: calc(0.4 + (var(--i) / var(--total)) * 0.6);
+  transition: all 0.5s ease;
+}
+
+/* Reactive animations for the swarm */
+.voice-v2-orb--listening .v2-particle-premium {
+  animation: v2SwarmAgitated 1.5s ease-in-out infinite alternate;
+}
+
+.voice-v2-orb--speaking .v2-particle-premium {
+  animation: v2SwarmAgitated 0.4s ease-in-out infinite;
+}
+
+.voice-v2-orb--thinking .v2-particle-premium {
+  animation: v2SwarmFlow 3s ease-in-out infinite;
+}
+
+@keyframes v2SwarmAgitated {
+  from { transform: rotate(var(--angle)) translateY(var(--radius)) scale(0.8); }
+  to   { transform: rotate(calc(var(--angle) + 20deg)) translateY(calc(var(--radius) + 5px)) scale(1.2); }
+}
+
+@keyframes v2SwarmFlow {
+  0%, 100% { transform: rotate(var(--angle)) translateY(var(--radius)); }
+  50% { transform: rotate(calc(var(--angle) + 40deg)) translateY(calc(var(--radius) - 10px)); }
+}
+
+@keyframes v2Rotate {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+/* Cleanup old particle styles */
+.v2-orb-particles, .v2-particle { display: none; }
 
 
 

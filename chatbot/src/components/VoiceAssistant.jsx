@@ -158,10 +158,6 @@ export default function VoiceAssistant({ onClose }) {
               Arjun
             </button>
           </div>
-          
-          <button className="voice-v2-icon-btn" onClick={() => setShowSettings(!showSettings)} title="Settings" style={{ opacity: 0.6 }}>
-            <span className="material-symbols-outlined">settings</span>
-          </button>
         </div>
       </header>
 

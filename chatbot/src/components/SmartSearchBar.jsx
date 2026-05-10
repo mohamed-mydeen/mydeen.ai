@@ -118,17 +118,21 @@ export default function SmartSearchBar({
       )}
 
       <form className="smart-input-bar ios-glass-bar" onSubmit={handleSubmit}>
-        <button 
-          type="button" 
-          className={`new-search-btn-add ${isMenuOpen ? "active" : ""}`}
-          onClick={onPlusClick}
-          disabled={isProcessing}
-        >
-          <span className="material-symbols-outlined">
-            {isProcessing ? "sync" : isMenuOpen ? "close" : "add"}
-          </span>
-        </button>
+        {/* Left Side: Plus/Add Button */}
+        <div className="smart-input-left">
+          <button 
+            type="button" 
+            className={`new-search-btn-add ${isMenuOpen ? "active" : ""}`}
+            onClick={onPlusClick}
+            disabled={isProcessing}
+          >
+            <span className="material-symbols-outlined">
+              {isProcessing ? "sync" : isMenuOpen ? "close" : "add"}
+            </span>
+          </button>
+        </div>
 
+        {/* Center: Input Area */}
         <div className="new-search-input-wrap">
           <div className="placeholder-container">
             {showTypewriter && !query && (
@@ -150,9 +154,40 @@ export default function SmartSearchBar({
           </div>
         </div>
 
+        {/* Right Side: Grouped Actions */}
         <div className="new-search-actions-group">
-          {/* Web Search Toggle */}
-          {onToggleWebSearch && !query.trim() && (
+          {/* Voice Assistant - Blue styled */}
+          {onVoiceClick && !query.trim() && (
+            <button
+              type="button"
+              className="smart-action-btn smart-voice-assistant-btn"
+              onClick={onVoiceClick}
+              title="Voice Assistant"
+              style={{ 
+                backgroundColor: 'rgba(59, 130, 246, 0.12)',
+                border: '1px solid rgba(59, 130, 246, 0.3)',
+                color: '#3b82f6',
+                boxShadow: '0 0 10px rgba(59, 130, 246, 0.2)'
+              }}
+            >
+              <span className="material-symbols-outlined" style={{ fontSize: '20px', fontWeight: 'bold' }}>settings_voice</span>
+            </button>
+          )}
+
+          {/* Mic Button */}
+          {!query.trim() && (
+            <button
+              type="button"
+              className={`smart-action-btn ${isListening ? "active" : ""}`}
+              onClick={startListening}
+              disabled={isProcessing}
+            >
+              <span className="material-symbols-outlined">{isListening ? "graphic_eq" : "mic"}</span>
+            </button>
+          )}
+
+          {/* Web Search Toggle (Only when typing) */}
+          {onToggleWebSearch && query.trim() && (
             <button
               type="button"
               className={`smart-action-btn ${webSearchEnabled ? "active" : ""}`}
@@ -163,38 +198,6 @@ export default function SmartSearchBar({
                 {webSearchEnabled ? "travel_explore" : "language"}
               </span>
             </button>
-          )}
-
-          {/* Voice Assistant & Mic - Grouped */}
-          {!query.trim() && (
-            <>
-              <button
-                type="button"
-                className={`smart-action-btn ${isListening ? "active" : ""}`}
-                onClick={startListening}
-                disabled={isProcessing}
-              >
-                <span className="material-symbols-outlined">{isListening ? "graphic_eq" : "mic"}</span>
-              </button>
-
-              {onVoiceClick && (
-                <button
-                  type="button"
-                  className="smart-action-btn smart-voice-assistant-btn"
-                  onClick={onVoiceClick}
-                  title="Voice Assistant"
-                  style={{ 
-                    marginLeft: '6px',
-                    backgroundColor: 'rgba(59, 130, 246, 0.15)',
-                    borderColor: 'rgba(59, 130, 246, 0.4)',
-                    color: '#3b82f6',
-                    boxShadow: '0 0 12px rgba(59, 130, 246, 0.3)'
-                  }}
-                >
-                  <span className="material-symbols-outlined" style={{ fontWeight: 'bold' }}>settings_voice</span>
-                </button>
-              )}
-            </>
           )}
 
           {/* Send Button */}

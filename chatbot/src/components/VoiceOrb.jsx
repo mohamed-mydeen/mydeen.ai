@@ -1,7 +1,11 @@
 import React from "react";
 
-export default function VoiceOrb({ state, size = 100, accentColor = "#863bff" }) {
+export default function VoiceOrb({ state, size = 110, accentColor = "#863bff" }) {
   // state: idle | listening | thinking | speaking
+  // The goal is a dense, spiraling particle sphere matching the reference image.
+  
+  // We'll use 60 particles for a dense look without killing performance.
+  const particleCount = 60;
 
   return (
     <div 
@@ -12,36 +16,44 @@ export default function VoiceOrb({ state, size = 100, accentColor = "#863bff" })
         '--orb-accent': accentColor 
       }}
     >
-      {/* Outer Glow Layers */}
-      <div className="v2-orb-glow-outer" style={{ background: `radial-gradient(circle, ${accentColor}33 0%, transparent 70%)` }} />
-      <div className="v2-orb-glow-inner" style={{ background: `radial-gradient(circle, ${accentColor}66 0%, transparent 70%)` }} />
-
+      {/* Outer Glows */}
+      <div className="v2-orb-glow-outer" style={{ background: `radial-gradient(circle, ${accentColor}44 0%, transparent 70%)` }} />
+      
       <div className="v2-orb-sphere">
-        {/* Core Light */}
-        <div className="v2-orb-core" style={{ boxShadow: `0 0 30px ${accentColor}, 0 0 60px ${accentColor}` }} />
+        {/* Core light source */}
+        <div className="v2-orb-core" style={{ background: '#fff', boxShadow: `0 0 20px ${accentColor}, 0 0 40px ${accentColor}` }} />
 
-        {/* Rotating Particle Layers */}
-        {[...Array(3)].map((_, layer) => (
-          <div 
-            key={layer} 
-            className="v2-orb-particles" 
-            style={{ 
-              '--d': `${10 + layer * 5}s`,
-              transform: `rotate(${layer * 45}deg)`
-            }}
-          >
-            {[...Array(15)].map((_, i) => (
-              <div 
-                key={i} 
-                className="v2-particle" 
-                style={{ 
-                  '--i': i,
-                  boxShadow: `0 0 4px ${accentColor}`
-                }} 
-              />
-            ))}
-          </div>
-        ))}
+        {/* Dense Particle Swarm */}
+        <div className="v2-orb-particles-container">
+          {[...Array(particleCount)].map((_, i) => (
+            <div 
+              key={i} 
+              className="v2-particle-premium" 
+              style={{ 
+                '--i': i,
+                '--total': particleCount,
+                backgroundColor: i % 2 === 0 ? '#fff' : accentColor,
+                boxShadow: `0 0 4px ${accentColor}`
+              }} 
+            />
+          ))}
+        </div>
+        
+        {/* Secondary Swarm for depth */}
+        <div className="v2-orb-particles-container v2-orb-particles--slow">
+          {[...Array(30)].map((_, i) => (
+            <div 
+              key={`s-${i}`} 
+              className="v2-particle-premium" 
+              style={{ 
+                '--i': i,
+                '--total': 30,
+                backgroundColor: '#fff',
+                opacity: 0.3
+              }} 
+            />
+          ))}
+        </div>
       </div>
     </div>
   );
