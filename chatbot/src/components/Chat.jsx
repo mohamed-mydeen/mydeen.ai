@@ -142,8 +142,7 @@ function MydeenLogo({ size = 72 }) {
 
 function ChatMessage({ role, text, sources, onEdit, onRegenerate, isLast, isStreaming }) {
   const isUser = role === "user";
-  const [copied, setCopied] = useState(false);
-  const [shared, setShared] = useState(false);
+   const [feedback, setFeedback] = useState(null); // 'like' or 'dislike'
 
   const handleCopy = () => {
     navigator.clipboard.writeText(text);
@@ -225,11 +224,23 @@ function ChatMessage({ role, text, sources, onEdit, onRegenerate, isLast, isStre
             >
               <span className="material-symbols-outlined">{copied ? "check" : "content_copy"}</span>
             </button>
-            <button type="button" className="chat-msg__action-btn" title="Good response">
-              <span className="material-symbols-outlined">thumb_up</span>
+            <button 
+              type="button" 
+              className={`chat-msg__action-btn ${feedback === 'like' ? "chat-msg__action-btn--active" : ""}`} 
+              onClick={() => setFeedback(feedback === 'like' ? null : 'like')}
+              title="Good response"
+              style={{ color: feedback === 'like' ? '#10b981' : 'inherit' }}
+            >
+              <span className="material-symbols-outlined">{feedback === 'like' ? "thumb_up_filled" : "thumb_up"}</span>
             </button>
-            <button type="button" className="chat-msg__action-btn" title="Bad response">
-              <span className="material-symbols-outlined">thumb_down</span>
+            <button 
+              type="button" 
+              className={`chat-msg__action-btn ${feedback === 'dislike' ? "chat-msg__action-btn--active" : ""}`} 
+              onClick={() => setFeedback(feedback === 'dislike' ? null : 'dislike')}
+              title="Bad response"
+              style={{ color: feedback === 'dislike' ? '#ef4444' : 'inherit' }}
+            >
+              <span className="material-symbols-outlined">{feedback === 'dislike' ? "thumb_down_filled" : "thumb_down"}</span>
             </button>
             <button
               type="button"
@@ -259,7 +270,6 @@ function ChatMessage({ role, text, sources, onEdit, onRegenerate, isLast, isStre
             )}
           </div>
         </div>
-
       )}
     </div>
   );
@@ -548,7 +558,7 @@ export default function Chat({
     recognition.start();
   };
 
-  const isEmpty = messages.length === 0 && !loading;
+    const isEmpty = messages.length === 0 && !loading;
 
   return (
     <div className={`chat-container ${isEmpty ? "chat-container--empty" : ""}`}>
@@ -573,29 +583,23 @@ export default function Chat({
                 <MydeenLogo size={32} />
               </div>
               <div className="chat-msg__bubble-wrapper--ai">
-                {searchStatus ? (
-                  <div className="search-status-banner">
-                    <span className="search-status-icon material-symbols-outlined">
-                      {searchStatus.status === "searching" ? "travel_explore" :
-                       searchStatus.status === "sources_found" ? "library_books" : "auto_awesome"}
-                    </span>
-                    <span className="search-status-text">{searchStatus.message}</span>
-                  </div>
-                ) : (
+                <div className="chat-msg__bubble chat-msg__bubble--ai">
                   <div className="thinking-text">
-                    Thinking<span className="thinking-dot"></span><span className="thinking-dot"></span><span className="thinking-dot"></span>
+                    Thinking
+                    <div className="thinking-wave">
+                      <div className="thinking-dot"></div>
+                      <div className="thinking-dot"></div>
+                      <div className="thinking-dot"></div>
+                    </div>
                   </div>
-                )}
+                  {searchStatus && (
+                    <div className="search-status-banner--inline">
+                      <span className="material-symbols-outlined search-status-icon">language</span>
+                      <span className="search-status-text">{searchStatus}</span>
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
-          )}
-
-          {searchStatus && !isThinking && (
-            <div className="search-status-banner search-status-banner--inline">
-              <span className="search-status-icon material-symbols-outlined">
-                {searchStatus.status === "generating" ? "auto_awesome" : "travel_explore"}
-              </span>
-              <span className="search-status-text">{searchStatus.message}</span>
             </div>
           )}
 
@@ -683,10 +687,10 @@ export default function Chat({
                 disabled={loading || isProcessing}
                 style={{ width: '32px', height: '32px' }}
               >
-                <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>{isListening ? "graphic_eq" : "mic"}</span>
+                <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>{isListening ? "graphic_eq" : "mic"}</span>
               </button>
 
-              {input.trim() && (
+              {(input.trim() || isListening) && (
                 <button
                   type="submit"
                   className="chat-send-btn"
@@ -696,22 +700,72 @@ export default function Chat({
                     width: '32px', 
                     height: '32px', 
                     borderRadius: '50%',
-                    background: '#ffffff',
-                    color: '#000000',
+                    background: 'var(--color-primary)',
+                    color: 'var(--color-on-primary)',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
                     transition: 'all 0.2s',
-                    boxShadow: '0 2px 8px rgba(0,0,0,0.2)'
+                    marginLeft: '4px'
                   }}
                 >
-                  <span className="material-symbols-outlined" style={{ fontSize: '18px', fontWeight: '700' }}>arrow_upward</span>
+                  <span className="material-symbols-outlined" style={{ fontSize: '18px' }}>arrow_upward</span>
                 </button>
               )}
             </div>
           </div>
         </form>
       </footer>
+
+      {/* Options Drawer (Perplexity Style) */}
+      {isPlusMenuOpen && (
+        <>
+          <div className="options-overlay" onClick={onPlusClick} />
+          <div className="options-drawer">
+            <div className="options-header">
+              <h3 className="options-title">Options</h3>
+              <button className="options-close" onClick={onPlusClick}>
+                <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>close</span>
+              </button>
+            </div>
+
+            <div className="options-grid">
+              <div className="option-item">
+                <span className="material-symbols-outlined option-icon">image</span>
+                <span className="option-label">Image</span>
+              </div>
+              <div className="option-item">
+                <span className="material-symbols-outlined option-icon">photo_camera</span>
+                <span className="option-label">Camera</span>
+              </div>
+              <div className="option-item">
+                <span className="material-symbols-outlined option-icon">description</span>
+                <span className="option-label">File</span>
+              </div>
+              <div className="option-item">
+                <span className="material-symbols-outlined option-icon">link</span>
+                <span className="option-label">Web link</span>
+              </div>
+            </div>
+
+            <div className="option-search-box">
+              <span className="material-symbols-outlined" style={{ color: 'var(--color-on-surface-variant)', fontSize: '20px' }}>search</span>
+              <input type="text" className="option-search-input" placeholder="Search files or web..." />
+              <span className="material-symbols-outlined" style={{ color: '#10b981', fontSize: '20px' }}>check</span>
+            </div>
+
+            <div className="option-item" style={{ flexDirection: 'row', gap: '16px', padding: '16px', width: '100%', justifyContent: 'flex-start' }}>
+              <span className="material-symbols-outlined option-icon" style={{ opacity: 0.6 }}>shield</span>
+              <div style={{ flex: 1, textAlign: 'left' }}>
+                <p style={{ fontSize: '14px', fontWeight: '600', color: 'var(--on-surface)' }}>Safety Check</p>
+                <p style={{ fontSize: '12px', color: 'var(--on-surface-variant)' }}>Scan content for malicious links or data</p>
+              </div>
+              <span className="material-symbols-outlined" style={{ opacity: 0.4 }}>lock</span>
+            </div>
+          </div>
+        </>
+      )}
+
       {showScrollBtn && (
         <button 
           type="button"

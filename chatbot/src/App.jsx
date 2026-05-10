@@ -163,18 +163,18 @@ function NewHome({ onNavigate, onGoToChat }) {
   const greetingName = firstName ? ` ${firstName}` : "";
 
   const ALL_TRENDS = [
-    { emoji: "🏏", label: "IPL 2024 latest match scores" },
-    { emoji: "🌦️", label: "Heatwave updates in India" },
-    { emoji: "✈️", label: "Best summer spots in Kashmir" },
-    { emoji: "📈", label: "Indian stock market trends today" },
-    { emoji: "🚀", label: "ISRO's latest space missions" },
-    { emoji: "🎬", label: "Upcoming Indian blockbuster movies" },
-    { emoji: "🍲", label: "Quick Indian recipes for dinner" },
-    { emoji: "📱", label: "New smartphone launches in India" },
-    { emoji: "🎓", label: "Tips for competitive exams preparation" },
-    { emoji: "🎵", label: "Top trending songs in India right now" },
-    { emoji: "🚄", label: "Vande Bharat Express new routes" },
-    { emoji: "💻", label: "Tech startups landscape in Bengaluru" },
+    { emoji: "🏛️", label: "Tamil Nadu political updates" },
+    { emoji: "🏏", label: "CSK next match schedule & tickets" },
+    { emoji: "🍛", label: "Best traditional food in Madurai" },
+    { emoji: "🌦️", label: "Monsoon alerts in Chennai" },
+    { emoji: "🎬", label: "Kollywood blockbuster news" },
+    { emoji: "🏖️", label: "Marina Beach weekend events" },
+    { emoji: "🚄", label: "Vande Bharat routes in Tamil Nadu" },
+    { emoji: "📚", label: "TNPSC exam preparation tips" },
+    { emoji: "📱", label: "Best tech stores in Chennai" },
+    { emoji: "🏭", label: "New industrial parks in Hosur" },
+    { emoji: "🕉️", label: "Temple festivals this month" },
+    { emoji: "🏝️", label: "Rameswaram travel guide" },
   ];
 
   const getRandomTrends = () => {
