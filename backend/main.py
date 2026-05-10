@@ -21,7 +21,7 @@ from pathlib import Path
 from typing import Optional, List
 from groq import AsyncGroq, Groq
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException, Depends, BackgroundTasks
+from fastapi import FastAPI, HTTPException, Depends, BackgroundTasks, File, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
@@ -68,7 +68,12 @@ if not GROQ_API_KEY:
 # Initialize Groq client
 client = AsyncGroq(api_key=GROQ_API_KEY)
 
-MODEL_NAME = "llama-3.3-70b-versatile"
+MODELS = [
+    "llama-3.3-70b-versatile",
+    "llama-3.1-8b-instant",
+    "llama-3.2-3b-preview"
+]
+MODEL_NAME = MODELS[0]
 
 SYSTEM_PROMPT = (
     "You are Mydeen AI, a versatile and helpful assistant. "
@@ -84,7 +89,7 @@ SYSTEM_PROMPT = (
 )
 
 MAX_RETRIES  = 3
-RETRY_DELAY  = 3
+RETRY_DELAY  = 0.5
 
 # ── JWT Auth Config ─────────────────────────────────────────────────────
 
@@ -296,6 +301,29 @@ class ScrapeRequest(BaseModel):
 class DetectRequest(BaseModel):
     url: str
 
+# ── PDF Upload ─────────────────────────────────────────────────────────
+import PyPDF2
+import io
+
+@app.post("/upload-pdf", tags=["pdf"])
+async def upload_pdf(file: UploadFile = File(...), user_email: str = Depends(verify_token)):
+    if not file.filename.lower().endswith('.pdf'):
+        raise HTTPException(status_code=400, detail="Only PDF files are allowed")
+    try:
+        content = await file.read()
+        pdf_reader = PyPDF2.PdfReader(io.BytesIO(content))
+        text = ""
+        for page in pdf_reader.pages:
+            text += page.extract_text() + "\n"
+        
+        if len(text) > 20000:
+            text = text[:20000] + "... (truncated)"
+            
+        return {"text": text, "filename": file.filename}
+    except Exception as e:
+        logger.error(f"PDF extraction failed: {e}")
+        raise HTTPException(status_code=500, detail="Failed to parse PDF")
+
 # ── Helpers ────────────────────────────────────────────────────────────
 
 def build_history(messages, username: str = None, users_dict: dict = None):
@@ -489,7 +517,7 @@ async def generate_chat_title(user_email: str, session_id: str, first_message: s
         completion = await client.chat.completions.create(
             messages=[{"role": "system", "content": "You are a helpful assistant."},
                       {"role": "user", "content": prompt}],
-            model=MODEL_NAME,
+            model=MODELS[1], # Use a lighter model for titles to save rate limits
             temperature=0.3,
             max_tokens=20,
         )
@@ -655,10 +683,11 @@ async def chat(body: ChatRequest, background_tasks: BackgroundTasks, user: str =
         background_tasks.add_task(save_to_db, user, "user", body.message, session_id, session_title)
 
     for attempt in range(MAX_RETRIES):
+        current_model = MODELS[attempt % len(MODELS)]
         try:
             chat_completion = await client.chat.completions.create(
                 messages=messages,
-                model=MODEL_NAME,
+                model=current_model,
                 temperature=0.7,
                 max_tokens=1024,
             )
@@ -722,11 +751,12 @@ async def chat_stream(body: ChatRequest, background_tasks: BackgroundTasks, user
             await queue.put(json.dumps({"session_id": session_id}))
             
             for attempt in range(MAX_RETRIES):
+                current_model = MODELS[attempt % len(MODELS)]
                 try:
-                    logger.info(f"[stream] attempt {attempt + 1} using model: {MODEL_NAME}")
+                    logger.info(f"[stream] attempt {attempt + 1} using model: {current_model}")
                     stream = await client.chat.completions.create(
                         messages=messages,
-                        model=MODEL_NAME,
+                        model=current_model,
                         temperature=0.7,
                         max_tokens=1024,
                         stream=True,
@@ -863,10 +893,11 @@ async def chat_search_stream(
             await queue.put(json.dumps({"status": "generating", "message": "Generating response..."}))
 
             for attempt in range(MAX_RETRIES):
+                current_model = MODELS[attempt % len(MODELS)]
                 try:
                     stream = await client.chat.completions.create(
                         messages=base_messages,
-                        model=MODEL_NAME,
+                        model=current_model,
                         temperature=0.7,
                         max_tokens=1536,
                         stream=True,

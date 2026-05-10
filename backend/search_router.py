@@ -148,15 +148,14 @@ async def route_and_search(query: str) -> dict:
         candidate_urls = [r.get("url", "") for r in ddg_results
                          if r.get("url", "").startswith("http")]
 
-    for jina_url in candidate_urls[:3]:  # try up to 3 URLs
-        logger.info(f"[SearchRouter] Jina trying: {jina_url}")
-        result = await extract_url_content(jina_url, max_chars=2500)
-        if result.get("success") and result.get("content"):
-            jina_content = result
-            logger.info(f"[SearchRouter] Jina success: {jina_url}")
-            break
-        else:
-            logger.warning(f"[SearchRouter] Jina blocked/failed, trying next URL...")
+    # Try top 2 URLs in parallel for significantly faster responses
+    if candidate_urls:
+        jina_tasks = [extract_url_content(url, max_chars=2500) for url in candidate_urls[:2]]
+        jina_results = await asyncio.gather(*jina_tasks, return_exceptions=True)
+        for res in jina_results:
+            if not isinstance(res, Exception) and res.get("success") and res.get("content"):
+                jina_content = res
+                break
 
 
     # ── Compile all sources ───────────────────────────────────────────────

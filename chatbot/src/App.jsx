@@ -219,82 +219,177 @@ function NewHome({ onNavigate, onGoToChat }) {
   );
 }
 
-/* VIEW is imported from ./constants */
+/* Premium Dropdown Component */
+function PremiumSelect({ value, options, onChange }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const dropdownRef = useRef(null);
 
-/* ─── Profile Page ───────────────────────────────────────────────────── */
-function ProfilePage() {
-  const { user: supaUser } = useAuth();
-
-  // Prefer Supabase user metadata (Google fills this automatically)
-  const displayName  = supaUser?.user_metadata?.full_name
-                    || supaUser?.user_metadata?.name
-                    || localStorage.getItem("user_name")
-                    || "User";
-  const displayEmail = supaUser?.email
-                    || localStorage.getItem("user_email")
-                    || "";
-  const avatarUrl    = supaUser?.user_metadata?.avatar_url
-                    || supaUser?.user_metadata?.picture
-                    || null;
-  const plan         = "Free Tier";
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   return (
-    <main className="main-canvas profile-view-page" id="profile-page">
-      {/* Minimalist Developer Banner */}
-      <div className="portfolio-banner">
-        <div className="portfolio-banner__content">
-          <p className="portfolio-banner__label">Software Developer</p>
-          <h2 className="portfolio-banner__title">{displayName}</h2>
-          <a href="https://mydeen.vercel.app/" target="_blank" rel="noopener noreferrer" className="portfolio-banner__btn">
-            View Portfolio
-          </a>
-        </div>
+    <div className="premium-dropdown" ref={dropdownRef}>
+      <div className="premium-dropdown__selected" onClick={() => setIsOpen(!isOpen)}>
+        <span style={{ fontFamily: value !== 'Default' ? value : 'inherit' }}>{value}</span>
+        <span className="material-symbols-outlined">
+          {isOpen ? 'expand_less' : 'expand_more'}
+        </span>
       </div>
-
-      {/* Avatar */}
-      {avatarUrl && (
-        <div style={{ display: 'flex', justifyContent: 'center', margin: '-20px 0 20px' }}>
-          <img
-            src={avatarUrl}
-            alt={displayName}
-            style={{
-              width: 72, height: 72, borderRadius: '50%',
-              border: '3px solid var(--color-brand-blue)',
-              boxShadow: '0 8px 24px rgba(139,154,243,0.3)',
-              objectFit: 'cover',
-            }}
-          />
+      {isOpen && (
+        <div className="premium-dropdown__menu">
+          {options.map((opt) => (
+            <div
+              key={opt}
+              className={`premium-dropdown__option ${value === opt ? 'premium-dropdown__option--active' : ''}`}
+              style={{ fontFamily: opt !== 'Default' ? opt : 'inherit' }}
+              onClick={() => {
+                onChange(opt);
+                setIsOpen(false);
+              }}
+            >
+              {opt}
+            </div>
+          ))}
         </div>
       )}
-
-      <div className="profile-details">
-        <h3 className="profile-details__label">Account</h3>
-
-        <div className="profile-detail-item">
-          <p className="profile-detail-item__label">Name</p>
-          <p className="profile-detail-item__value">{displayName}</p>
-        </div>
-
-        <div className="profile-detail-item">
-          <p className="profile-detail-item__label">Email</p>
-          <p className="profile-detail-item__value">{displayEmail}</p>
-        </div>
-      </div>
-    </main>
+    </div>
   );
 }
 
-/* ─── Settings Page ──────────────────────────────────────────────────── */
-function SettingsPage({ onNavigate, onLogout }) {
+/* VIEW is imported from ./constants */
+
+/* ─── Profile Page ───────────────────────────────────────────────────── */
+/* ProfilePage removed as per user request. Details merged into Settings. */
+
+function SettingsPage({ onNavigate, onLogout, onClearHistory, language, setLanguage }) {
+  const { user: supaUser } = useAuth();
   const [notifications, setNotifications] = useState(true);
-  const { isDark, setIsDark }             = useTheme();
-  const [language, setLanguage]           = useState("English");
+  
+  // Customization States
+  const [accentColor, setAccentColor] = useState(() => localStorage.getItem("accent_color") || "#3b82f6");
+  const [fontFamily, setFontFamily]   = useState(() => localStorage.getItem("font_family") || "Inter");
+  const [phone, setPhone]             = useState(() => localStorage.getItem("user_phone") || supaUser?.phone || "");
+
+  useEffect(() => {
+    document.documentElement.style.setProperty('--color-brand-blue', accentColor);
+    localStorage.setItem("accent_color", accentColor);
+  }, [accentColor]);
+
+  useEffect(() => {
+    document.documentElement.style.setProperty('--font-main', `'${fontFamily}', sans-serif`);
+    localStorage.setItem("font_family", fontFamily);
+  }, [fontFamily]);
+
+  useEffect(() => {
+    localStorage.setItem("user_phone", phone);
+  }, [phone]);
+
+  useEffect(() => {
+    localStorage.setItem("user_language", language);
+  }, [language]);
+
+  const displayName  = supaUser?.user_metadata?.full_name || supaUser?.user_metadata?.name || "User";
+  const displayEmail = supaUser?.email || "";
+
+  const ACCENT_COLORS = [
+    { name: 'Blue', color: '#3b82f6' },
+    { name: 'Purple', color: '#8b5cf6' },
+    { name: 'Emerald', color: '#10b981' },
+    { name: 'Rose', color: '#f43f5e' },
+    { name: 'Amber', color: '#f59e0b' },
+    { name: 'Indigo', color: '#6366f1' },
+    { name: 'Teal', color: '#14b8a6' },
+    { name: 'Slate', color: '#64748b' }
+  ];
+
+  const FONT_OPTIONS = ["Inter", "Poppins", "Outfit", "Montserrat", "Lexend", "Roboto", "Playfair Display", "JetBrains Mono"];
+  const LANG_OPTIONS = ["English", "Tamil", "Arabic", "Hindi", "French"];
 
   return (
     <main className="main-canvas page-view" id="settings-page">
       <div className="page-header">
         <span className="material-symbols-outlined page-header__icon">settings</span>
         <h2 className="page-header__title">Settings</h2>
+      </div>
+
+      <div className="settings-group">
+        <h3 className="settings-group__label">Profile</h3>
+        <div className="settings-item">
+          <div className="settings-item__info">
+            <span className="material-symbols-outlined">person</span>
+            <div>
+              <p className="settings-item__name">Username</p>
+              <p className="settings-item__desc">{displayName}</p>
+            </div>
+          </div>
+        </div>
+        <div className="settings-item">
+          <div className="settings-item__info">
+            <span className="material-symbols-outlined">mail</span>
+            <div>
+              <p className="settings-item__name">Email</p>
+              <p className="settings-item__desc">{displayEmail}</p>
+            </div>
+          </div>
+        </div>
+        <div className="settings-item">
+          <div className="settings-item__info">
+            <span className="material-symbols-outlined">phone</span>
+            <div>
+              <p className="settings-item__name">Phone Number</p>
+              <input 
+                type="tel" 
+                className="settings-input-premium" 
+                value={phone} 
+                onChange={(e) => setPhone(e.target.value)}
+                placeholder="Enter phone number"
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="settings-group">
+        <h3 className="settings-group__label">Appearance</h3>
+        
+        <div className="settings-item" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: '16px' }}>
+          <div className="settings-item__info">
+            <span className="material-symbols-outlined">palette</span>
+            <div>
+              <p className="settings-item__name">Accent Color</p>
+              <p className="settings-item__desc">Choose your preferred brand color</p>
+            </div>
+          </div>
+          <div className="color-pills-container">
+            {ACCENT_COLORS.map(c => (
+              <button 
+                key={c.color}
+                className={`color-pill ${accentColor === c.color ? 'active' : ''}`}
+                style={{ backgroundColor: c.color }}
+                onClick={() => setAccentColor(c.color)}
+                title={c.name}
+              />
+            ))}
+          </div>
+        </div>
+
+        <div className="settings-item">
+          <div className="settings-item__info">
+            <span className="material-symbols-outlined">font_download</span>
+            <div>
+              <p className="settings-item__name">Font Style</p>
+              <p className="settings-item__desc">Choose a professional typeface</p>
+            </div>
+          </div>
+          <PremiumSelect value={fontFamily} options={FONT_OPTIONS} onChange={setFontFamily} />
+        </div>
       </div>
 
       <div className="settings-group">
@@ -310,52 +405,10 @@ function SettingsPage({ onNavigate, onLogout }) {
           </div>
           <span className="material-symbols-outlined" style={{ color: "var(--color-on-surface-variant)" }}>chevron_right</span>
         </div>
-
-        <div className="settings-item">
-          <div className="settings-item__info">
-            <span className="material-symbols-outlined">notifications</span>
-            <div>
-              <p className="settings-item__name">Notifications</p>
-              <p className="settings-item__desc">Get updates about your study sessions</p>
-            </div>
-          </div>
-          <button
-            className={`toggle ${notifications ? "toggle--on" : ""}`}
-            onClick={() => setNotifications(v => !v)}
-            aria-label="Toggle notifications"
-            role="switch"
-            aria-checked={notifications}
-          >
-            <span className="toggle__thumb" />
-          </button>
-        </div>
-
-
-        <div className="settings-item">
-          <div className="settings-item__info">
-            <span className="material-symbols-outlined">translate</span>
-            <div>
-              <p className="settings-item__name">Language</p>
-              <p className="settings-item__desc">Response language preference</p>
-            </div>
-          </div>
-          <select
-            className="settings-select"
-            value={language}
-            onChange={e => setLanguage(e.target.value)}
-            aria-label="Select language"
-          >
-            <option>English</option>
-            <option>Arabic</option>
-            <option>Urdu</option>
-            <option>Hindi</option>
-            <option>French</option>
-          </select>
-        </div>
       </div>
 
       <div className="settings-group">
-        <h3 className="settings-group__label">Account</h3>
+        <h3 className="settings-group__label">Account & Data</h3>
         <div className="settings-item">
           <div className="settings-item__info">
             <span className="material-symbols-outlined">logout</span>
@@ -364,34 +417,18 @@ function SettingsPage({ onNavigate, onLogout }) {
               <p className="settings-item__desc">Sign out of your account</p>
             </div>
           </div>
-          <button
-            type="button"
-            className="settings-btn settings-btn--danger"
-            onClick={onLogout}
-          >
-            Logout
-          </button>
+          <button type="button" className="settings-btn settings-btn--danger" onClick={onLogout}>Logout</button>
         </div>
-      </div>
-
-      <div className="settings-group">
-        <h3 className="settings-group__label">Data</h3>
 
         <div className="settings-item">
           <div className="settings-item__info">
             <span className="material-symbols-outlined">delete_sweep</span>
             <div>
-              <p className="settings-item__name">Clear Chat History</p>
+              <p className="settings-item__name">Clear Recent Chats</p>
               <p className="settings-item__desc">Remove all saved conversations</p>
             </div>
           </div>
-          <button
-            type="button"
-            className="settings-btn settings-btn--danger"
-            onClick={() => { localStorage.removeItem("chat_history"); }}
-          >
-            Clear
-          </button>
+          <button type="button" className="settings-btn settings-btn--danger" onClick={onClearHistory}>Clear</button>
         </div>
       </div>
     </main>
@@ -592,6 +629,7 @@ function SafetyAnalysisPage({ url, onComplete, results }) {
 }
 
 export default function App() {
+  const API_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
   // ── Auth via Supabase (falls back to legacy localStorage token) ──
   const { isAuthenticated, user, isLoading: authLoading, logout: supaLogout, getAccessToken } = useAuth();
   // Also allow legacy token-only flow (username/password backend)
@@ -604,7 +642,11 @@ export default function App() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isChatActive, setIsChatActive]   = useState(false);
   const [initialQuery, setInitialQuery]   = useState({ text: "", isHistory: false });
+  const [language, setLanguage]           = useState(() => localStorage.getItem("user_language") || "English");
   const [deleteTargetSid, setDeleteTargetSid] = useState(null);
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const [showClearHistoryConfirm, setShowClearHistoryConfirm] = useState(false);
+  
   const [history, setHistory]             = useState(() => {
     const saved = localStorage.getItem("chat_history");
     return saved ? JSON.parse(saved) : [];
@@ -628,7 +670,7 @@ export default function App() {
     window.addEventListener("popstate", handlePopState);
     
     // Initial state
-    window.history.replaceState({ view: VIEW.HOME, isChatActive: false }, "");
+    window.history.replaceState({ view: VIEW.RECENT, icon: "history", label: "Recent" }, "");
 
     return () => window.removeEventListener("popstate", handlePopState);
   }, []);
@@ -642,6 +684,7 @@ export default function App() {
 
   const [isProcessing, setIsProcessing] = useState(false);
   const [isPlusMenuOpen, setIsPlusMenuOpen] = useState(false);
+  const [isPlusMenuClosing, setIsPlusMenuClosing] = useState(false);
   const [isUrlModalOpen, setIsUrlModalOpen] = useState(false);
   const [isSafetyModalOpen, setIsSafetyModalOpen] = useState(false);
   const [safetyTargetUrl, setSafetyTargetUrl] = useState("");
@@ -660,7 +703,7 @@ export default function App() {
             return;
           }
 
-          const response = await fetch("http://127.0.0.1:8000/history", {
+          const response = await fetch(`${API_URL}/history`, {
             headers: { "Authorization": `Bearer ${token}` }
           });
           
@@ -697,26 +740,80 @@ export default function App() {
     return () => window.removeEventListener("click", handleGlobalClick);
   }, [isPlusMenuOpen]);
 
+  const closePlusMenu = () => {
+    setIsPlusMenuClosing(true);
+    setTimeout(() => {
+      setIsPlusMenuOpen(false);
+      setIsPlusMenuClosing(false);
+    }, 300);
+  };
+
   const handlePlusClick = (e) => {
-    e.stopPropagation();
-    setIsPlusMenuOpen(!isPlusMenuOpen);
+    e?.stopPropagation();
+    if (isPlusMenuOpen) {
+      closePlusMenu();
+    } else {
+      setIsPlusMenuOpen(true);
+    }
   };
 
   const triggerOCR = (e) => {
-    e.stopPropagation();
-    setIsPlusMenuOpen(false);
+    e?.stopPropagation();
+    closePlusMenu();
     fileInputRef.current?.click();
   };
 
   const triggerUrlModal = (e) => {
-    e.stopPropagation();
-    setIsPlusMenuOpen(false);
+    e?.stopPropagation();
+    closePlusMenu();
     setIsUrlModalOpen(true);
   };
 
+  const pdfInputRef = useRef(null);
+  const triggerPdfUpload = (e) => {
+    e?.stopPropagation();
+    closePlusMenu();
+    pdfInputRef.current?.click();
+  };
+
+  const handlePdfUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    
+    setIsProcessing(true);
+    const formData = new FormData();
+    formData.append("file", file);
+    
+    try {
+      const response = await fetch(`${API_URL}/upload-pdf`, {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${localStorage.getItem("auth_token")}`
+        },
+        body: formData
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        const pdfText = data.text;
+        // Automatically start chat with the PDF context
+        goToChat(`I have uploaded a PDF: ${file.name}. \n\nHere is the content extracted from the PDF:\n\n${pdfText}\n\nPlease summarize this PDF and explain its main points.`);
+      } else {
+        alert("Failed to extract PDF content. Please try again.");
+      }
+    } catch (err) {
+      console.error("PDF Upload error:", err);
+      alert("Error uploading PDF.");
+    } finally {
+      setIsProcessing(false);
+      // Reset input
+      e.target.value = '';
+    }
+  };
+
   const triggerSafetyModal = (e) => {
-    e.stopPropagation();
-    setIsPlusMenuOpen(false);
+    e?.stopPropagation();
+    closePlusMenu();
     setIsSafetyModalOpen(true);
   };
 
@@ -728,7 +825,8 @@ export default function App() {
     setIsUrlModalOpen(false);
     
     try {
-      const response = await fetch("http://localhost:8000/scrape", {
+      const API_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
+      const response = await fetch(`${API_URL}/scrape`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ url: urlInput.trim() }),
@@ -874,6 +972,11 @@ export default function App() {
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         background: 'var(--color-background)', zIndex: 9999,
       }}>
+        <style>{`
+          @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:wght@400;500;600;700&family=Outfit:wght@400;500;600;700&family=Montserrat:wght@400;500;600;700&family=Lexend:wght@400;500;600;700&family=Roboto:wght@400;500;700&family=Playfair+Display:wght@400;700&family=JetBrains+Mono:wght@400;700&display=swap');
+          :root { --color-brand-blue: #3b82f6; --font-main: 'Inter', sans-serif; }
+          body { font-family: var(--font-main) !important; }
+        `}</style>
         <span className="material-symbols-outlined" style={{
           fontSize: 48, color: 'var(--color-brand-blue)',
           animation: 'spin 1s linear infinite',
@@ -890,11 +993,9 @@ export default function App() {
   const navigate = (target) => {
     setView(target);
     setIsSidebarOpen(false);
-    const isChat = false;
-    if (target !== VIEW.HOME) setIsChatActive(isChat);
     
     // Update Browser History
-    window.history.pushState({ view: target, isChatActive: isChat }, "");
+    window.history.pushState({ view: target, isChatActive, initialQuery }, "");
   };
 
   /** Go to chat, optionally with a pre-filled query */
@@ -922,7 +1023,7 @@ export default function App() {
   };
 
   return (
-    <>
+    <div className="app-viewport">
       {/* ── Sidebar & Header ── */}
       <Sidebar
         isOpen={isSidebarOpen}
@@ -951,18 +1052,12 @@ export default function App() {
       <TopBar
         showMenu={view === VIEW.HOME || view === VIEW.HISTORY || view === VIEW.SAFETY_ANALYSIS}
         onLogoClick={() => {
-          setIsChatActive(false);
-          setInitialQuery({ text: "", isHistory: false });
-          navigate(VIEW.HOME);
+          setView(VIEW.HOME);
         }}
         onMenuClick={() => setIsSidebarOpen(true)}
-        onProfileClick={() => navigate(VIEW.PROFILE)}
+        onProfileClick={() => navigate(VIEW.SETTINGS)}
         onBack={() => {
-          if (isChatActive) {
-            setIsChatActive(false);
-          } else {
-            navigate(VIEW.HOME);
-          }
+          navigate(VIEW.HOME);
         }}
         showBack={view !== VIEW.HOME}
       />
@@ -976,6 +1071,7 @@ export default function App() {
               onPlusClick={handlePlusClick}
               isPlusMenuOpen={isPlusMenuOpen}
               isProcessing={isProcessing}
+              language={language}
             />
           ) : (
             <>
@@ -990,30 +1086,49 @@ export default function App() {
             </>
           )}
 
-          {isPlusMenuOpen && (
-            <div className="plus-menu" onClick={(e) => e.stopPropagation()}>
-              <button className="plus-menu__item" onClick={triggerOCR}>
-                <span className="material-symbols-outlined">center_focus_strong</span>
-                <div className="plus-menu__item-info">
-                  <p className="plus-menu__item-name">OCR Scan</p>
-                  <p className="plus-menu__item-desc">Extract text from your images</p>
+          {/* Options Drawer (Perplexity Style) */}
+          {(isPlusMenuOpen || isPlusMenuClosing) && (
+            <>
+              <div className={`bottom-drawer-overlay ${isPlusMenuClosing ? 'closing' : ''}`} onClick={handlePlusClick} />
+              <div className={`bottom-drawer ${isPlusMenuClosing ? 'closing' : ''}`}>
+                <div className="bottom-drawer-header">
+                  <h3 className="bottom-drawer-title">Options</h3>
+                  <button className="bottom-drawer-close" onClick={handlePlusClick}>
+                    <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>close</span>
+                  </button>
                 </div>
-              </button>
-              <button className="plus-menu__item" onClick={triggerUrlModal}>
-                <span className="material-symbols-outlined">link</span>
-                <div className="plus-menu__item-info">
-                  <p className="plus-menu__item-name">Web Link</p>
-                  <p className="plus-menu__item-desc">Summarize articles from the web</p>
+
+                <div className="options-grid">
+                  <div className="option-item" onClick={triggerOCR}>
+                    <span className="material-symbols-outlined option-icon">center_focus_strong</span>
+                    <span className="option-label">OCR Scan</span>
+                  </div>
+                  <div className="option-item" onClick={triggerOCR}>
+                    <span className="material-symbols-outlined option-icon">photo_camera</span>
+                    <span className="option-label">Camera</span>
+                  </div>
+                  <div className="option-item" onClick={triggerSafetyModal}>
+                    <span className="material-symbols-outlined option-icon">shield</span>
+                    <span className="option-label">Safety</span>
+                  </div>
+                  <div className="option-item" onClick={triggerUrlModal}>
+                    <span className="material-symbols-outlined option-icon">link</span>
+                    <span className="option-label">Web link</span>
+                  </div>
+                  <div className="option-item" onClick={triggerPdfUpload}>
+                    <span className="material-symbols-outlined option-icon">picture_as_pdf</span>
+                    <span className="option-label">PDF</span>
+                  </div>
                 </div>
-              </button>
-              <button className="plus-menu__item" onClick={triggerSafetyModal}>
-                <span className="material-symbols-outlined">shield_lock</span>
-                <div className="plus-menu__item-info">
-                  <p className="plus-menu__item-name">Safety Check</p>
-                  <p className="plus-menu__item-desc">Detect deceptive or fake websites</p>
+
+                <div className="option-search-box">
+                  <span className="material-symbols-outlined" style={{ color: 'var(--color-on-surface-variant)', fontSize: '20px' }}>search</span>
+                  <input type="text" className="option-search-input" placeholder="Search files or web..." />
+                  <span className="material-symbols-outlined" style={{ color: '#10b981', fontSize: '20px' }}>check</span>
                 </div>
-              </button>
-            </div>
+
+              </div>
+            </>
           )}
 
           {isUrlModalOpen && (
@@ -1130,10 +1245,10 @@ export default function App() {
           <div className="history-header">
             <div className="history-header__info">
               <span className="material-symbols-outlined history-header__icon">history</span>
-              <h2 className="history-header__title">History</h2>
+              <h2 className="history-header__title">Recent</h2>
             </div>
             <button className="history-header__clear" onClick={() => {
-              if (window.confirm("Are you sure you want to clear all history?")) {
+              if (window.confirm("Are you sure you want to clear all recent chats?")) {
                 setHistory([]);
                 localStorage.removeItem("chat_history");
               }
@@ -1185,9 +1300,8 @@ export default function App() {
         />
       )}
 
-      {view === VIEW.SETTINGS && <SettingsPage onNavigate={navigate} onLogout={logout} />}
+      {view === VIEW.SETTINGS && <SettingsPage onNavigate={navigate} onLogout={() => setShowLogoutConfirm(true)} onClearHistory={() => setShowClearHistoryConfirm(true)} language={language} setLanguage={setLanguage} />}
       {view === VIEW.MEMORIES && <MemoriesPage onBack={() => navigate(VIEW.SETTINGS)} />}
-      {view === VIEW.PROFILE  && <ProfilePage />}
       {view === VIEW.ABOUT    && <AboutPage />}
 
       {deleteTargetSid && (
@@ -1202,6 +1316,54 @@ export default function App() {
           </div>
         </div>
       )}
-    </>
+
+      {/* Hidden File Input */}
+      <input
+        type="file"
+        ref={fileInputRef}
+        onChange={handleFileChange}
+        style={{ display: "none" }}
+        accept="image/*,.pdf,.txt,.doc,.docx"
+        id="file-upload-input"
+      />
+      {showLogoutConfirm && (
+        <div className="premium-modal-overlay">
+          <div className="premium-modal">
+            <h3 className="premium-modal-title">Logout?</h3>
+            <p className="premium-modal-desc">Are you sure you want to sign out of your account?</p>
+            <div className="premium-modal-actions">
+              <button className="premium-modal-btn premium-modal-btn--cancel" onClick={() => setShowLogoutConfirm(false)}>Cancel</button>
+              <button className="premium-modal-btn premium-modal-btn--danger" onClick={() => { setShowLogoutConfirm(false); logout(); }}>Logout</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showClearHistoryConfirm && (
+        <div className="premium-modal-overlay">
+          <div className="premium-modal">
+            <h3 className="premium-modal-title">Clear Recents?</h3>
+            <p className="premium-modal-desc">This will permanently delete ALL your past conversations. This action cannot be undone.</p>
+            <div className="premium-modal-actions">
+              <button className="premium-modal-btn premium-modal-btn--cancel" onClick={() => setShowClearHistoryConfirm(false)}>Cancel</button>
+              <button className="premium-modal-btn premium-modal-btn--danger" onClick={() => { 
+                localStorage.removeItem("chat_history");
+                setHistory([]);
+                setShowClearHistoryConfirm(false);
+              }}>Clear All</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Hidden PDF Input */}
+      <input 
+        type="file" 
+        ref={pdfInputRef} 
+        style={{ display: 'none' }} 
+        accept=".pdf" 
+        onChange={handlePdfUpload} 
+      />
+    </div>
   );
 }

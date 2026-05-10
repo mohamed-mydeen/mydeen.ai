@@ -10,3 +10,4 @@ supabase
 pydantic
 python-multipart
 python-whois
+PyPDF2
