@@ -7481,3 +7481,316 @@ textarea {
   }
 }
 
+
+/* ═══════════════════════════════════════════════════════════════════
+   VOICE ASSISTANT V2 — IMMERSIVE 3D EXPERIENCE
+   ═══════════════════════════════════════════════════════════════════ */
+
+.voice-assistant-v2 {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: radial-gradient(circle at top, #1a1a1a 0%, #0a0a0a 100%);
+  display: flex;
+  flex-direction: column;
+  color: #fff;
+  padding: var(--sat) var(--sar) var(--sab) var(--sal);
+  overflow: hidden;
+}
+
+/* Warm glow at the bottom to match reference image */
+.voice-assistant-v2::after {
+  content: '';
+  position: absolute;
+  bottom: -20%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 100%;
+  height: 60%;
+  background: radial-gradient(ellipse at bottom, rgba(134, 59, 255, 0.15) 0%, transparent 70%);
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* ── Header ── */
+.voice-v2-header {
+  height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 24px;
+  position: relative;
+  z-index: 10;
+}
+
+.voice-v2-icon-btn {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.05);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(255, 255, 255, 0.6);
+  transition: all 0.2s ease;
+}
+.voice-v2-icon-btn:active { transform: scale(0.9); background: rgba(255, 255, 255, 0.15); }
+
+/* ── Content / Text Area ── */
+.voice-v2-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  padding: 40px 32px;
+  position: relative;
+  z-index: 5;
+}
+
+.voice-v2-text-wrapper {
+  max-width: 600px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.voice-v2-ai-text,
+.voice-v2-hint {
+  font-family: 'Merriweather', serif;
+  font-size: 28px;
+  line-height: 1.4;
+  color: rgba(255, 255, 255, 0.9);
+  font-weight: 400;
+  letter-spacing: -0.01em;
+  animation: v2FadeSlideUp 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+.voice-v2-user-text {
+  font-family: var(--font-main);
+  font-size: 18px;
+  color: rgba(255, 255, 255, 0.5);
+  margin-bottom: 12px;
+  font-weight: 500;
+}
+
+.voice-v2-cursor {
+  display: inline-block;
+  width: 2px;
+  height: 28px;
+  background: #863bff;
+  margin-left: 4px;
+  vertical-align: middle;
+  animation: v2Blink 1s infinite;
+}
+
+/* ── Bottom Area ── */
+.voice-v2-bottom {
+  padding-bottom: calc(40px + var(--sab));
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  position: relative;
+  z-index: 10;
+}
+
+.voice-v2-status {
+  margin-bottom: 24px;
+}
+
+.voice-v2-state-label {
+  font-size: 15px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.4);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.voice-v2-controls-row {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 40px;
+  padding: 0 40px;
+}
+
+.voice-v2-circle-btn {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.voice-v2-circle-btn:active { transform: scale(0.9); background: rgba(255, 255, 255, 0.2); }
+.voice-v2-circle-btn.active { background: #863bff; border-color: #863bff; box-shadow: 0 0 20px rgba(134, 59, 255, 0.4); }
+
+.voice-v2-orb-container {
+  position: relative;
+}
+
+.voice-v2-orb-btn {
+  position: relative;
+  z-index: 2;
+  cursor: pointer;
+  background: none;
+  border: none;
+  padding: 0;
+  outline: none;
+  transition: transform 0.2s ease;
+}
+.voice-v2-orb-btn:active { transform: scale(0.95); }
+
+/* ── THE ORB — PREMIUM 3D STYLING ── */
+.voice-v2-orb {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.v2-orb-sphere {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  background: radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.1) 0%, transparent 70%);
+  overflow: hidden;
+  box-shadow: inset 0 0 40px rgba(134, 59, 255, 0.2);
+}
+
+.v2-orb-core {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 30%;
+  height: 30%;
+  background: #fff;
+  border-radius: 50%;
+  filter: blur(15px);
+  opacity: 0.8;
+  box-shadow: 0 0 30px #863bff, 0 0 60px #863bff;
+}
+
+/* Glow Layers */
+.v2-orb-glow-outer {
+  position: absolute;
+  inset: -20px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(134, 59, 255, 0.2) 0%, transparent 70%);
+  animation: v2OrbPulse 4s infinite ease-in-out;
+}
+
+.v2-orb-glow-inner {
+  position: absolute;
+  inset: -5px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(134, 59, 255, 0.4) 0%, transparent 70%);
+  opacity: 0.6;
+}
+
+/* Particle Layers */
+.v2-orb-particles {
+  position: absolute;
+  inset: 0;
+  animation: v2Rotate var(--d) linear infinite;
+}
+
+.v2-particle {
+  position: absolute;
+  width: 3px;
+  height: 3px;
+  background: #fff;
+  border-radius: 50%;
+  top: 50%;
+  left: 50%;
+  transform: rotate(calc(var(--i) * (360deg / 15))) translateY(calc(40px + (var(--i) * 2px)));
+  opacity: calc(0.3 + (var(--i) * 0.05));
+  box-shadow: 0 0 4px #863bff;
+}
+
+/* Reactive states */
+.voice-v2-orb--listening .v2-orb-glow-outer {
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.3) 0%, transparent 70%);
+  animation: v2OrbPulse 1s infinite ease-in-out;
+}
+
+.voice-v2-orb--thinking .v2-orb-core {
+  animation: v2ThinkingPulse 1.5s infinite ease-in-out;
+}
+
+.voice-v2-orb--speaking .v2-particle {
+  animation: v2ParticleJitter 0.3s infinite ease-in-out;
+}
+
+/* ── Keyframes ── */
+@keyframes v2FadeSlideUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes v2Blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+@keyframes v2Rotate {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+@keyframes v2OrbPulse {
+  0%, 100% { transform: scale(1); opacity: 0.2; }
+  50% { transform: scale(1.2); opacity: 0.4; }
+}
+
+@keyframes v2ThinkingPulse {
+  0%, 100% { transform: translate(-50%, -50%) scale(1); opacity: 0.8; }
+  50% { transform: translate(-50%, -50%) scale(1.5); opacity: 0.4; }
+}
+
+@keyframes v2ParticleJitter {
+  0%, 100% { transform: rotate(calc(var(--i) * (360deg / 15))) translateY(40px); }
+  50% { transform: rotate(calc(var(--i) * (360deg / 15))) translateY(45px); }
+}
+
+/* ── Responsive Fixes ── */
+@media (max-width: 480px) {
+  .voice-v2-ai-text,
+  .voice-v2-hint {
+    font-size: 22px;
+  }
+  .voice-v2-controls-row {
+    gap: 24px;
+    padding: 0 24px;
+  }
+  .voice-v2-circle-btn {
+    width: 48px;
+    height: 48px;
+  }
+}
+
+/* Error Toast Style */
+.voice-v2-error {
+  position: fixed;
+  top: 80px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(239, 68, 68, 0.9);
+  backdrop-filter: blur(8px);
+  padding: 12px 20px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 14px;
+  font-weight: 500;
+  z-index: 10000;
+  animation: v2FadeSlideUp 0.3s ease both;
+}
+
+

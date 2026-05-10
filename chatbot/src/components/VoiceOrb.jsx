@@ -1,39 +1,48 @@
 import React from "react";
 
 /**
- * VoiceOrb – animated SVG orb that reacts to idle / listening / thinking / speaking states.
+ * Enhanced VoiceOrb – A more 3D-feeling, glowing particle sphere
  */
 export default function VoiceOrb({ state = "idle", size = 200 }) {
-  const stateClass = `voice-orb voice-orb--${state}`;
+  const stateClass = `voice-v2-orb voice-v2-orb--${state}`;
 
   return (
     <div className={stateClass} style={{ width: size, height: size }}>
-      {/* Core glow layers */}
-      <div className="orb-core" />
-      <div className="orb-ring orb-ring--1" />
-      <div className="orb-ring orb-ring--2" />
-      <div className="orb-ring orb-ring--3" />
+      {/* Outer Glows */}
+      <div className="v2-orb-glow-outer" />
+      <div className="v2-orb-glow-inner" />
 
-      {/* Particle field – only visible while speaking/listening */}
-      <div className="orb-particles">
-        {Array.from({ length: 12 }).map((_, i) => (
-          <div key={i} className="orb-particle" style={{ "--i": i }} />
-        ))}
+      {/* Main Sphere Body */}
+      <div className="v2-orb-sphere">
+        {/* Particle layers for 3D depth */}
+        <div className="v2-orb-particles layer-1">
+          {Array.from({ length: 15 }).map((_, i) => (
+            <div key={i} className="v2-particle" style={{ "--i": i, "--d": "10s" }} />
+          ))}
+        </div>
+        <div className="v2-orb-particles layer-2">
+          {Array.from({ length: 15 }).map((_, i) => (
+            <div key={i} className="v2-particle" style={{ "--i": i, "--d": "15s" }} />
+          ))}
+        </div>
+        
+        {/* Core light source */}
+        <div className="v2-orb-core" />
       </div>
 
-      {/* Wave bars – listening mode */}
+      {/* Reaction elements */}
       {state === "listening" && (
-        <div className="orb-wave-bars">
-          {Array.from({ length: 5 }).map((_, i) => (
-            <div key={i} className="orb-wave-bar" style={{ "--i": i }} />
-          ))}
+        <div className="v2-orb-listening-waves">
+          <div className="v2-wave" />
+          <div className="v2-wave" />
+          <div className="v2-wave" />
         </div>
       )}
 
-      {/* Thinking dots */}
       {state === "thinking" && (
-        <div className="orb-thinking">
-          <span /><span /><span />
+        <div className="v2-orb-thinking-pulses">
+          <div className="v2-pulse" />
+          <div className="v2-pulse" />
         </div>
       )}
     </div>

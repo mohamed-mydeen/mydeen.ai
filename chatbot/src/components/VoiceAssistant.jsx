@@ -11,7 +11,6 @@ const IDLE_TIPS = [
 ];
 
 export default function VoiceAssistant({ onClose }) {
-  // Only track CURRENT exchange — Gemini Live style
   const [userText, setUserText]       = useState("");
   const [aiText, setAiText]           = useState("");
   const [streaming, setStreaming]      = useState("");
@@ -20,7 +19,7 @@ export default function VoiceAssistant({ onClose }) {
 
   const replyAccumRef = useRef("");
   const sessionIdRef  = useRef(null);
-  const isBusyRef     = useRef(false); // prevent double-sends
+  const isBusyRef     = useRef(false);
 
   const {
     voiceState, setVoiceState,
@@ -32,28 +31,24 @@ export default function VoiceAssistant({ onClose }) {
     toggleMute,
   } = useVoiceAssistant({});
 
-  /* ── Rotate idle tips ─────────────────────────────────────────── */
   useEffect(() => {
     if (voiceState !== "idle") return;
     const t = setInterval(() => setTipIndex(i => (i + 1) % IDLE_TIPS.length), 3500);
     return () => clearInterval(t);
   }, [voiceState]);
 
-  /* ── Process transcript when thinking starts ──────────────────── */
   useEffect(() => {
     if (!transcript || voiceState !== "thinking" || isBusyRef.current) return;
 
     const userMsg = transcript;
-    setTranscript(""); // clear immediately to prevent re-fire
+    setTranscript("");
     isBusyRef.current = true;
 
-    // Show current user message
     setUserText(userMsg);
     setAiText("");
     setStreaming("");
     replyAccumRef.current = "";
 
-    // Build history from previous exchanges
     const history = conversationHistory.map(h => [
       { role: "user",      text: h.user },
       { role: "assistant", text: h.ai },
@@ -77,11 +72,8 @@ export default function VoiceAssistant({ onClose }) {
         const fullReply = replyAccumRef.current;
         setStreaming("");
         setAiText(fullReply);
-
-        // Save to history for context
         setConversationHistory(prev => [...prev, { user: userMsg, ai: fullReply }]);
 
-        // Clean text for TTS
         const ttsText = fullReply
           .replace(/[#*`_~\[\]()>]/g, "")
           .replace(/\n+/g, " ")
@@ -102,22 +94,10 @@ export default function VoiceAssistant({ onClose }) {
     })();
   }, [transcript, voiceState]);
 
-  /* ── Orb tap ──────────────────────────────────────────────────── */
   const handleOrbTap = () => {
     if (voiceState === "speaking") { stopSpeaking(); isBusyRef.current = false; return; }
     if (voiceState === "listening") { stopListening(); return; }
     if (voiceState === "idle" && !isBusyRef.current) startListening();
-  };
-
-  const handleNewConvo = () => {
-    stopSpeaking();
-    setUserText("");
-    setAiText("");
-    setStreaming("");
-    setConversationHistory([]);
-    sessionIdRef.current = null;
-    isBusyRef.current = false;
-    setVoiceState("idle");
   };
 
   const getStateLabel = () => {
@@ -130,79 +110,75 @@ export default function VoiceAssistant({ onClose }) {
   const displayText = streaming || aiText;
 
   return (
-    <div className="voice-assistant-overlay">
-      {/* Header */}
-      <header className="voice-header">
-        <span className="voice-brand">Mydeen AI</span>
-        <div className="voice-header-actions">
-          <button className={`voice-icon-btn ${isMuted ? "voice-icon-btn--active" : ""}`} onClick={toggleMute} title={isMuted ? "Unmute" : "Mute"}>
-            <span className="material-symbols-outlined">{isMuted ? "volume_off" : "volume_up"}</span>
-          </button>
-          <button className="voice-icon-btn" onClick={onClose} title="Exit">
-            <span className="material-symbols-outlined">close</span>
+    <div className="voice-assistant-overlay voice-assistant-v2">
+      {/* ── Top Header ── */}
+      <header className="voice-v2-header">
+        <div className="voice-v2-header-left">
+          {/* Empty for balance or could have brand */}
+        </div>
+        <div className="voice-v2-header-right">
+          <button className="voice-v2-icon-btn" onClick={() => {/* Settings logic */}} title="Settings">
+            <span className="material-symbols-outlined">settings</span>
           </button>
         </div>
       </header>
 
-      {/* ── Single Exchange Display (Gemini style) ─────────────── */}
-      <div className="voice-exchange-area">
-        {userText && (
-          <p className="voice-exchange-user">{userText}</p>
-        )}
-        {displayText && (
-          <p className="voice-exchange-ai">
-            {displayText}
-            {streaming && <span className="voice-cursor" />}
-          </p>
-        )}
-        {!userText && !displayText && voiceState === "idle" && (
-          <p className="voice-exchange-hint">Tap the orb and start speaking</p>
-        )}
+      {/* ── Central Text Area ── */}
+      <div className="voice-v2-content">
+        <div className="voice-v2-text-wrapper">
+          {userText && !displayText && (
+            <p className="voice-v2-user-text">{userText}</p>
+          )}
+          {displayText && (
+            <div className="voice-v2-ai-text">
+              {displayText}
+              {streaming && <span className="voice-v2-cursor" />}
+            </div>
+          )}
+          {!userText && !displayText && voiceState === "idle" && (
+            <p className="voice-v2-hint">How can I assist you today?</p>
+          )}
+        </div>
       </div>
 
-      {/* Error */}
+      {/* ── Bottom Controls & Orb ── */}
+      <div className="voice-v2-bottom">
+        <div className="voice-v2-status">
+          <p className="voice-v2-state-label">{getStateLabel()}</p>
+        </div>
+
+        <div className="voice-v2-controls-row">
+          {/* Close Button */}
+          <button className="voice-v2-circle-btn voice-v2-btn-close" onClick={onClose}>
+            <span className="material-symbols-outlined">close</span>
+          </button>
+
+          {/* Main Orb */}
+          <div className="voice-v2-orb-container">
+            <button className="voice-v2-orb-btn" onClick={handleOrbTap}>
+              <VoiceOrb state={voiceState} size={110} />
+            </button>
+          </div>
+
+          {/* Mic / Mute Button */}
+          <button 
+            className={`voice-v2-circle-btn voice-v2-btn-mic ${voiceState === 'listening' ? 'active' : ''}`} 
+            onClick={voiceState === 'listening' ? stopListening : handleOrbTap}
+          >
+            <span className="material-symbols-outlined">
+              {isMuted ? "mic_off" : "mic"}
+            </span>
+          </button>
+        </div>
+      </div>
+
+      {/* Error Toast */}
       {error && (
-        <div className="voice-error">
-          <span className="material-symbols-outlined">error</span>
-          {error}
+        <div className="voice-v2-error">
+          <span>{error}</span>
           <button onClick={() => setError(null)}>✕</button>
         </div>
       )}
-
-      {/* ── Orb + State Label ──────────────────────────────────── */}
-      <div className="voice-center">
-        <button className="orb-tap-btn" onClick={handleOrbTap} aria-label="Voice orb">
-          <VoiceOrb state={voiceState} size={180} />
-        </button>
-        <p className="voice-state-label">{getStateLabel()}</p>
-      </div>
-
-      {/* ── Bottom Controls ────────────────────────────────────── */}
-      <div className="voice-controls">
-        {(voiceState === "idle" || voiceState === "listening") && (
-          <button
-            className={`voice-ctrl-btn voice-ctrl-btn--primary ${voiceState === "listening" ? "voice-ctrl-btn--stop" : ""}`}
-            onClick={handleOrbTap}
-          >
-            <span className="material-symbols-outlined">
-              {voiceState === "listening" ? "stop" : "mic"}
-            </span>
-            {voiceState === "listening" ? "Stop" : "Speak"}
-          </button>
-        )}
-        {voiceState === "speaking" && (
-          <button className="voice-ctrl-btn voice-ctrl-btn--danger" onClick={() => { stopSpeaking(); isBusyRef.current = false; }}>
-            <span className="material-symbols-outlined">stop_circle</span>
-            Stop
-          </button>
-        )}
-        {conversationHistory.length > 0 && (
-          <button className="voice-ctrl-btn" onClick={handleNewConvo}>
-            <span className="material-symbols-outlined">restart_alt</span>
-            New
-          </button>
-        )}
-      </div>
     </div>
   );
 }
