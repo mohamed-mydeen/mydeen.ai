@@ -16,6 +16,7 @@ import AboutPage from "./components/AboutPage";
 import ProfilePage from "./components/ProfilePage";
 import SmartSearchBar from "./components/SmartSearchBar";
 import VoiceAssistant from "./components/VoiceAssistant";
+import PWAInstallPrompt from "./components/PWAInstallPrompt";
 import { VIEW }    from "./constants";
 import { useTheme } from "./context/ThemeContext";
 import { useAuth }  from "./context/AuthContext";
@@ -981,6 +982,9 @@ export default function App() {
       {showVoice && (
         <VoiceAssistant onClose={() => setShowVoice(false)} />
       )}
+
+      {/* ── PWA Install Prompt ── */}
+      <PWAInstallPrompt />
     </div>
   );
 }

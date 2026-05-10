@@ -8,3 +8,4 @@ __pycache__/
 *.py[cod]
 .env.*
 !.env.example
+dev-dist

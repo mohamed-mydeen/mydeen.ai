@@ -6919,3 +6919,565 @@ body {
   .voice-brand { font-size: 16px; }
   .voice-launch-btn { bottom: 80px; right: 16px; width: 46px; height: 46px; }
 }
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   PWA & MOBILE NATIVE EXPERIENCE
+   Full safe-area support, keyboard handling, touch UX, install prompt
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* ── CSS Custom Properties for Safe Areas ───────────────────────── */
+:root {
+  --sat: env(safe-area-inset-top,    0px);
+  --sar: env(safe-area-inset-right,  0px);
+  --sab: env(safe-area-inset-bottom, 0px);
+  --sal: env(safe-area-inset-left,   0px);
+
+  /* Dynamic viewport height — handles keyboard appearance */
+  --dvh: 100dvh;
+}
+
+/* ── App Viewport: PWA fullscreen with safe area ────────────────── */
+html {
+  height: 100%;
+  height: -webkit-fill-available;
+  overscroll-behavior: none;
+  -webkit-text-size-adjust: 100%; /* prevent iOS font scaling on rotate */
+}
+
+body {
+  min-height: 100%;
+  min-height: -webkit-fill-available;
+  overscroll-behavior: none;
+  overscroll-behavior-y: none;
+  /* iOS momentum scrolling on scrollable children only */
+  -webkit-overflow-scrolling: auto;
+  /* Prevent pull-to-refresh hijacking */
+  overscroll-behavior-y: contain;
+}
+
+/* PWA standalone: fill the entire screen including notch areas */
+@media (display-mode: standalone) {
+  html, body {
+    background: var(--color-background);
+  }
+  .app-viewport {
+    padding-top: var(--sat);
+    padding-left: var(--sal);
+    padding-right: var(--sar);
+  }
+}
+
+/* ── Top Bar: respect status bar / notch ────────────────────────── */
+.top-bar {
+  padding-top: max(0px, var(--sat));
+  padding-left: max(var(--space-lg), calc(var(--space-lg) + var(--sal)));
+  padding-right: max(var(--space-lg), calc(var(--space-lg) + var(--sar)));
+  /* When in PWA mode, the bar height should expand for status bar */
+  min-height: calc(64px + var(--sat));
+  height: auto;
+}
+
+/* ── Bottom Input Bar: keyboard-safe fixed positioning ──────────── */
+/* The smart search bar / chat input stays above the keyboard */
+.smart-search-bar,
+.smart-search-wrapper,
+[class*="search-bar-fixed"],
+[class*="chat-input-bar"] {
+  padding-bottom: max(var(--space-md), calc(var(--space-md) + var(--sab)));
+  padding-left: max(var(--space-md), calc(var(--space-md) + var(--sal)));
+  padding-right: max(var(--space-md), calc(var(--space-md) + var(--sar)));
+}
+
+/* ── Bottom nav safe area ────────────────────────────────────────── */
+.bottom-nav {
+  padding-bottom: var(--sab);
+  min-height: calc(56px + var(--sab));
+}
+
+/* ── Chat messages area: use dvh for stable layout ───────────────── */
+.chat-container {
+  height: 100%;
+  min-height: 0;
+  /* use dynamic viewport — adapts when keyboard appears */
+  max-height: 100dvh;
+}
+
+.chat-messages {
+  /* Add bottom padding to clear fixed input + safe area */
+  padding-bottom: calc(160px + var(--sab));
+  /* GPU-accelerated scrolling */
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
+
+/* ── Home layout: keyboard-safe ──────────────────────────────────── */
+.home-layout-wrapper {
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  overflow: hidden;
+}
+
+/* ── Touch interactions: native feel ────────────────────────────── */
+button,
+[role="button"],
+.action-pill,
+.new-home__chip,
+.option-item,
+.sidebar__item,
+.bottom-nav__item,
+.chat-msg__action-btn,
+.top-bar__icon-btn {
+  /* Instant feedback, no 300ms delay */
+  touch-action: manipulation;
+  /* Active state: subtle press effect */
+  transition: transform 0.12s cubic-bezier(0.4, 0, 0.2, 1),
+              opacity  0.12s cubic-bezier(0.4, 0, 0.2, 1),
+              background 0.15s ease;
+}
+
+button:active,
+[role="button"]:active,
+.action-pill:active,
+.new-home__chip:active,
+.option-item:active,
+.sidebar__item:active,
+.top-bar__icon-btn:active {
+  transform: scale(0.94);
+  opacity: 0.85;
+}
+
+/* Prevent double-tap zoom on buttons */
+button,
+input,
+a,
+[role="button"] {
+  touch-action: manipulation;
+}
+
+/* ── Scrollable areas: smooth GPU scrolling ─────────────────────── */
+.chat-messages,
+.sidebar,
+.sidebar__history,
+.settings-page,
+.about-page,
+.memories-page {
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-y: contain;
+  scroll-behavior: smooth;
+}
+
+/* ── Sidebar: full-height with safe areas ────────────────────────── */
+.sidebar {
+  padding-top: max(0px, var(--sat));
+  padding-bottom: max(var(--space-md), calc(var(--space-md) + var(--sab)));
+  /* Use dvh for reliable full-height */
+  height: 100dvh;
+  max-height: 100dvh;
+}
+
+/* ── Page transitions: smooth & native ───────────────────────────── */
+.page-transition {
+  animation: pageSlideIn 0.25s cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+
+@keyframes pageSlideIn {
+  from { opacity: 0; transform: translateY(8px) scale(0.995); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* ── Overscroll: no rubber-band background flash ─────────────────── */
+.app-viewport,
+.home-layout-wrapper,
+.chat-container {
+  overscroll-behavior: none;
+}
+
+/* ── Input / Textarea: keyboard UX ──────────────────────────────── */
+input,
+textarea {
+  /* Prevent iOS zoom on focus (font-size >= 16px) */
+  font-size: max(16px, 1rem);
+  /* Smooth caret */
+  caret-color: var(--color-brand-blue);
+}
+
+/* Fix: some chat input bars may be smaller — keep them legible */
+.smart-search-bar input,
+.chat-input input,
+.chat-input textarea {
+  font-size: 16px !important; /* Prevents iOS auto-zoom */
+}
+
+/* ── Standalone PWA: hide unnecessary browser chrome ────────────── */
+@media (display-mode: standalone) {
+  /* Remove any lingering outlines */
+  *:focus { outline: none !important; }
+
+  /* Status bar area colour matches app bg */
+  meta[name="theme-color"] { content: var(--color-background); }
+}
+
+/* ── Splash / Loading screen ─────────────────────────────────────── */
+.pwa-splash {
+  position: fixed;
+  inset: 0;
+  z-index: 99999;
+  background: #000;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  animation: splashFadeOut 0.4s 1.2s ease-out both;
+  pointer-events: none;
+}
+
+.pwa-splash__icon {
+  width: 80px;
+  height: 80px;
+  animation: splashIconIn 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+.pwa-splash__name {
+  font-family: var(--font-family);
+  font-size: 22px;
+  font-weight: 700;
+  color: #fff;
+  letter-spacing: -0.02em;
+  animation: splashNameIn 0.4s 0.15s ease both;
+}
+
+@keyframes splashFadeOut {
+  from { opacity: 1; }
+  to   { opacity: 0; }
+}
+@keyframes splashIconIn {
+  from { opacity: 0; transform: scale(0.4); }
+  to   { opacity: 1; transform: scale(1); }
+}
+@keyframes splashNameIn {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── PWA Install Prompt (native bottom sheet) ────────────────────── */
+.pwa-install-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  animation: overlayFadeIn 0.25s ease both;
+  padding: 0 0 var(--sab) 0;
+}
+
+@keyframes overlayFadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.pwa-install-sheet {
+  width: 100%;
+  max-width: 480px;
+  background: var(--color-surface-container-high, #1a1a1a);
+  border-radius: 24px 24px 0 0;
+  padding: 12px 20px 24px;
+  animation: sheetSlideUp 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  box-shadow: 0 -8px 40px rgba(0, 0, 0, 0.4);
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  padding-bottom: max(24px, calc(24px + var(--sab)));
+}
+
+@keyframes sheetSlideUp {
+  from { transform: translateY(100%); }
+  to   { transform: translateY(0); }
+}
+
+.pwa-install-handle {
+  width: 36px;
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.2);
+  margin: 0 auto 20px;
+}
+
+.pwa-install-content {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.pwa-install-app-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.pwa-install-app-icon {
+  width: 56px;
+  height: 56px;
+  border-radius: 14px;
+  background: #111;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  flex-shrink: 0;
+}
+
+.pwa-install-app-name {
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--color-on-surface, #e6e6e6);
+  margin: 0 0 2px;
+}
+
+.pwa-install-app-desc {
+  font-size: 13px;
+  color: var(--color-on-surface-variant, #b0b3b8);
+  margin: 0;
+}
+
+.pwa-install-tagline {
+  font-size: 14px;
+  color: var(--color-on-surface-variant, #b0b3b8);
+  line-height: 1.5;
+  margin: 0;
+}
+
+/* iOS install instructions */
+.pwa-install-ios {
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 14px;
+  padding: 14px 16px;
+}
+
+.pwa-install-ios-text {
+  font-size: 13px;
+  color: var(--color-on-surface-variant, #b0b3b8);
+  margin: 0 0 10px;
+}
+
+.pwa-install-ios-steps {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.pwa-install-ios-steps li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--color-on-surface, #e6e6e6);
+}
+
+.pwa-install-step-icon {
+  font-size: 18px !important;
+  color: var(--color-brand-blue, #3b82f6);
+  flex-shrink: 0;
+}
+
+.pwa-install-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.pwa-install-btn-primary {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 14px 20px;
+  background: #863bff;
+  color: #fff;
+  border: none;
+  border-radius: 14px;
+  font-size: 15px;
+  font-weight: 600;
+  font-family: var(--font-family);
+  cursor: pointer;
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+  box-shadow: 0 4px 20px rgba(134, 59, 255, 0.4);
+}
+
+.pwa-install-btn-primary:active {
+  transform: scale(0.96);
+  box-shadow: 0 2px 10px rgba(134, 59, 255, 0.3);
+}
+
+.pwa-install-btn-primary .material-symbols-outlined {
+  font-size: 18px !important;
+}
+
+.pwa-install-btn-secondary {
+  padding: 14px 20px;
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--color-on-surface-variant, #b0b3b8);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  font-size: 15px;
+  font-weight: 500;
+  font-family: var(--font-family);
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.pwa-install-btn-secondary:active {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+/* ── Mobile-specific layout fixes ────────────────────────────────── */
+@media (max-width: 768px) {
+  /* Prevent layout shift when address bar appears/disappears */
+  .app-viewport {
+    height: 100dvh;
+    min-height: -webkit-fill-available;
+  }
+
+  /* Top bar height adapts to status bar */
+  .top-bar {
+    min-height: 56px;
+    height: auto;
+    padding-top: max(8px, var(--sat));
+  }
+
+  /* Chat messages scrolls independently, stable height */
+  .chat-messages {
+    padding-top: 72px;
+    padding-bottom: calc(140px + var(--sab));
+    padding-left: 8px;
+    padding-right: 8px;
+  }
+
+  /* Tighter home chips on small screens */
+  .new-home__chip {
+    padding: 10px 14px;
+    font-size: 13px;
+  }
+
+  /* Search bar bottom fixed with safe area */
+  .smart-search-bar,
+  .search-fixed-bar {
+    padding-bottom: max(12px, calc(12px + var(--sab)));
+  }
+
+  /* Typography scaling */
+  .new-home__hey  { font-size: 15px; }
+  .new-home__mind { font-size: 22px; }
+
+  /* Sidebar fills full screen on mobile */
+  .sidebar-overlay {
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    height: 100dvh;
+  }
+
+  /* Drawer matches dvh */
+  .sidebar {
+    height: 100dvh;
+    max-height: 100dvh;
+    padding-bottom: max(16px, calc(16px + var(--sab)));
+  }
+
+  /* Tab bar */
+  .bottom-nav {
+    padding-bottom: max(8px, var(--sab));
+    min-height: calc(56px + var(--sab));
+  }
+
+  /* Bottom drawer (options) safe area */
+  .bottom-drawer {
+    padding-bottom: max(24px, calc(24px + var(--sab)));
+  }
+}
+
+/* ── iPhone notch / Dynamic Island ──────────────────────────────── */
+@supports (padding-top: env(safe-area-inset-top)) {
+  .top-bar {
+    padding-top: max(12px, env(safe-area-inset-top));
+  }
+  .bottom-nav,
+  .smart-search-bar,
+  .bottom-drawer {
+    padding-bottom: max(8px, env(safe-area-inset-bottom));
+  }
+}
+
+/* ── Gesture-friendly tap targets (minimum 44×44pt) ─────────────── */
+.top-bar__icon-btn,
+.bottom-nav__item,
+.sidebar__close,
+.chat-msg__action-btn {
+  min-width: 44px;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ── No text selection on UI chrome (already set globally) ──────── */
+/* Allow text selection in messages and inputs */
+.chat-msg__text,
+.markdown-content,
+p,
+span:not([class*="material"]),
+input,
+textarea {
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+/* ── Scroll snap for home suggestions ───────────────────────────── */
+.new-home__chips {
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+}
+
+.new-home__chip {
+  scroll-snap-align: start;
+}
+
+/* ── Performance: GPU compositing hints ─────────────────────────── */
+.chat-messages,
+.sidebar,
+.app-viewport,
+.home-layout-wrapper {
+  will-change: transform;
+  transform: translate3d(0, 0, 0);
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
+/* ── Prevent white backgrounds from flashing (dark theme) ────────── */
+[data-theme="dark"] html,
+[data-theme="dark"] body {
+  background: #000 !important;
+}
+
+/* ── Keyboard-aware viewport: no jumping ────────────────────────── */
+@supports (height: 100dvh) {
+  .app-viewport {
+    height: 100dvh;
+  }
+  .chat-container {
+    max-height: 100dvh;
+  }
+}
+
