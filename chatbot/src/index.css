@@ -7832,78 +7832,42 @@ textarea {
 }
 
 
-/* Voice Assistant Settings Panel */
-.voice-v2-settings-panel {
-  position: absolute;
-  top: 80px;
-  right: 24px;
-  width: 240px;
-  background: rgba(20, 20, 20, 0.95);
-  backdrop-filter: blur(20px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 20px;
-  padding: 20px;
-  z-index: 100;
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
-  animation: v2FadeSlideUp 0.3s ease both;
-}
-
-.voice-v2-settings-panel h3 {
-  font-size: 14px;
-  font-weight: 600;
-  color: rgba(255, 255, 255, 0.5);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  margin-bottom: 16px;
-  margin-top: 0;
-}
-
-.voice-v2-pref-row {
+/* Premium Segmented Voice Selector */
+.voice-v2-segmented-control {
   display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.voice-v2-pref-btn {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 12px 16px;
   background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 12px;
-  color: #fff;
-  font-size: 14px;
-  font-weight: 500;
-  transition: all 0.2s ease;
-  cursor: pointer;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 30px;
+  padding: 3px;
+  gap: 2px;
 }
 
-.voice-v2-pref-btn.active {
-  background: var(--v2-accent);
-  border-color: var(--v2-accent);
-  box-shadow: 0 0 15px var(--v2-accent);
-}
-
-.voice-v2-settings-close {
-  width: 100%;
-  margin-top: 20px;
-  padding: 10px;
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 10px;
-  color: #fff;
+.voice-v2-seg-btn {
+  padding: 6px 16px;
+  border-radius: 25px;
   font-size: 13px;
   font-weight: 600;
+  color: rgba(255, 255, 255, 0.6);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   cursor: pointer;
+}
+
+.voice-v2-seg-btn.active {
+  background: var(--v2-accent);
+  color: #fff;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
 }
 
 .voice-v2-theme-indicator {
-  width: 12px;
-  height: 12px;
+  width: 10px;
+  height: 10px;
   border-radius: 50%;
   box-shadow: 0 0 10px currentColor;
   transition: all 0.5s ease;
 }
+
+/* Cleanup old boxy settings */
+.voice-v2-settings-panel { display: none; }
 
 
 

@@ -43,14 +43,12 @@ export default function VoiceAssistant({ onClose }) {
     toggleMute,
   } = useVoiceAssistant({ voicePreference });
 
-  // Cycle tips
   useEffect(() => {
     if (voiceState !== "idle") return;
     const t = setInterval(() => setTipIndex(i => (i + 1) % IDLE_TIPS.length), 3500);
     return () => clearInterval(t);
   }, [voiceState]);
 
-  // Handle incoming transcript (AI processing)
   useEffect(() => {
     if (!transcript || voiceState !== "thinking" || isBusyRef.current) return;
 
@@ -63,7 +61,6 @@ export default function VoiceAssistant({ onClose }) {
     setStreaming("");
     replyAccumRef.current = "";
 
-    // Change Theme for every new prompt
     setThemeIndex(prev => (prev + 1) % ACCENT_THEMES.length);
 
     const history = conversationHistory.map(h => [
@@ -120,7 +117,6 @@ export default function VoiceAssistant({ onClose }) {
   const handleVoiceChange = (pref) => {
     setVoicePreference(pref);
     localStorage.setItem("voice_pref", pref);
-    setShowSettings(false);
   };
 
   const getStateLabel = () => {
@@ -146,36 +142,28 @@ export default function VoiceAssistant({ onClose }) {
         <div className="voice-v2-header-left">
           <div className="voice-v2-theme-indicator" style={{ backgroundColor: activeTheme.color }} />
         </div>
-        <div className="voice-v2-header-right">
-          <button className="voice-v2-icon-btn" onClick={() => setShowSettings(!showSettings)} title="Settings">
+        <div className="voice-v2-header-right" style={{ display: 'flex', gap: '12px' }}>
+          {/* Premium Segmented Voice Selector */}
+          <div className="voice-v2-segmented-control">
+            <button 
+              className={`voice-v2-seg-btn ${voicePreference === 'female' ? 'active' : ''}`}
+              onClick={() => handleVoiceChange('female')}
+            >
+              Aditi
+            </button>
+            <button 
+              className={`voice-v2-seg-btn ${voicePreference === 'male' ? 'active' : ''}`}
+              onClick={() => handleVoiceChange('male')}
+            >
+              Arjun
+            </button>
+          </div>
+          
+          <button className="voice-v2-icon-btn" onClick={() => setShowSettings(!showSettings)} title="Settings" style={{ opacity: 0.6 }}>
             <span className="material-symbols-outlined">settings</span>
           </button>
         </div>
       </header>
-
-      {/* ── Settings Menu Overlay ── */}
-      {showSettings && (
-        <div className="voice-v2-settings-panel">
-          <h3>Voice Style</h3>
-          <div className="voice-v2-pref-row">
-            <button 
-              className={`voice-v2-pref-btn ${voicePreference === 'female' ? 'active' : ''}`}
-              onClick={() => handleVoiceChange('female')}
-            >
-              <span className="material-symbols-outlined">face_3</span>
-              <span>Sky (Female)</span>
-            </button>
-            <button 
-              className={`voice-v2-pref-btn ${voicePreference === 'male' ? 'active' : ''}`}
-              onClick={() => handleVoiceChange('male')}
-            >
-              <span className="material-symbols-outlined">face_6</span>
-              <span>Ember (Male)</span>
-            </button>
-          </div>
-          <button className="voice-v2-settings-close" onClick={() => setShowSettings(false)}>Done</button>
-        </div>
-      )}
 
       {/* ── Central Text Area ── */}
       <div className="voice-v2-content">

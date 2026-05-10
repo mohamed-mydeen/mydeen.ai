@@ -42,7 +42,9 @@ export function useVoiceAssistant({ onStreamChunk, onStreamDone, voicePreference
       setVoiceState("thinking");
     };
     recognition.onerror  = (e) => {
-      if (e.error !== "no-speech") setError(`Mic error: ${e.error}`);
+      if (e.error !== "no-speech" && e.error !== "aborted") {
+        setError(`Mic error: ${e.error}`);
+      }
       setVoiceState("idle");
     };
     recognition.onend    = () => {
