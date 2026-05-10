@@ -4467,6 +4467,7 @@ input  { font-family: inherit; }
 
 [data-theme="dark"] .search-status-icon {
   color: #8b9af3;
+  animation: premium-spin-dark 2s cubic-bezier(0.4, 0, 0.2, 1) infinite;
 }
 
 @keyframes premium-spin {
@@ -4474,7 +4475,7 @@ input  { font-family: inherit; }
   50% { transform: rotate(180deg) scale(1.15); opacity: 1; text-shadow: 0 0 10px rgba(99, 102, 241, 0.5); }
   100% { transform: rotate(360deg) scale(0.9); opacity: 0.7; }
 }
-[data-theme="dark"] @keyframes premium-spin {
+@keyframes premium-spin-dark {
   0% { transform: rotate(0deg) scale(0.9); opacity: 0.7; }
   50% { transform: rotate(180deg) scale(1.15); opacity: 1; text-shadow: 0 0 12px rgba(139, 154, 243, 0.6); }
   100% { transform: rotate(360deg) scale(0.9); opacity: 0.7; }
