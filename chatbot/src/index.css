@@ -2997,6 +2997,7 @@ input  { font-family: inherit; }
 .new-search-container {
   position: fixed;
   bottom: 20px;
+  bottom: max(20px, env(safe-area-inset-bottom, 20px));
   left: 0;
   right: 0;
   padding: 0 16px;
@@ -3004,6 +3005,13 @@ input  { font-family: inherit; }
   backdrop-filter: none;
   z-index: 1000;
   pointer-events: none;
+}
+
+@media (max-width: 600px) {
+  .new-search-container {
+    bottom: 10px; /* Bring it lower for more room on small screens */
+    padding: 0 10px;
+  }
 }
 
 .new-search-bar {
@@ -4724,9 +4732,27 @@ input  { font-family: inherit; }
   border-radius: 12px;
   box-shadow: 0 4px 20px rgba(0,0,0,0.1);
   min-width: 280px;
-  max-width: 320px;
+  max-width: min(320px, calc(100vw - 40px)); /* Ensure it doesn't overflow screen width */
   z-index: 50;
   animation: fadeSlideUp 0.2s ease both;
+}
+
+@media (max-width: 480px) {
+  .chatgpt-sources-list {
+    position: fixed;
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 80px);
+    left: 50%;
+    transform: translateX(-50%);
+    width: 92vw;
+    min-width: unset;
+    right: auto;
+    animation: fadeSlideUpMobile 0.2s ease both;
+  }
+}
+
+@keyframes fadeSlideUpMobile {
+  from { opacity: 0; transform: translate(-50%, 15px); }
+  to   { opacity: 1; transform: translate(-50%, 0); }
 }
 [data-theme="dark"] .chatgpt-sources-list {
   background: #2a2a2d;
