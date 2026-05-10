@@ -236,6 +236,27 @@ function SafetyAnalysisPage({ url, onComplete, results }) {
   );
 }
 
+function SplashScreen({ isVisible }) {
+  const [shouldRender, setShouldRender] = useState(true);
+
+  useEffect(() => {
+    if (!isVisible) {
+      const timer = setTimeout(() => setShouldRender(false), 800); // fade duration
+      return () => clearTimeout(timer);
+    }
+  }, [isVisible]);
+
+  if (!shouldRender) return null;
+
+  return (
+    <div className={`splash-screen ${!isVisible ? "splash-fade-out" : ""}`}>
+      <div className="splash-logo-container">
+        <MydeenLogo />
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
   const API_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
   // ── Auth via Supabase (falls back to legacy localStorage token) ──
@@ -245,6 +266,15 @@ export default function App() {
     () => !!localStorage.getItem("auth_token")
   );
   const effectiveAuth = isAuthenticated || legacyAuth;
+
+  const [showSplash, setShowSplash] = useState(true);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setShowSplash(false);
+    }, 2000); // Show splash for 2 seconds
+    return () => clearTimeout(timer);
+  }, []);
 
   const [view, setView]                   = useState(VIEW.HOME);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -632,8 +662,10 @@ export default function App() {
   };
 
   return (
-    <div className="app-viewport">
-      {/* ── Sidebar & Header ── */}
+    <>
+      <SplashScreen isVisible={showSplash} />
+      <div className="app-viewport">
+        {/* ── Sidebar & Header ── */}
       <Sidebar
         isOpen={isSidebarOpen}
         onClose={() => setIsSidebarOpen(false)}
@@ -985,6 +1017,6 @@ export default function App() {
 
       {/* ── PWA Install Prompt ── */}
       <PWAInstallPrompt />
-    </div>
+    </>
   );
 }
