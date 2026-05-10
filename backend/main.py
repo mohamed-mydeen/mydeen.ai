@@ -1,9 +1,10 @@
 """
-ChatMATE – FastAPI backend
-POST /register      →  create new account
-POST /login         →  returns JWT token
-POST /chat          →  standard JSON response (JWT protected)
-POST /chat/stream   →  Server-Sent Events (JWT protected)
+Mydeen AI – FastAPI backend
+POST /register              →  create new account
+POST /login                 →  returns JWT token
+POST /chat                  →  standard JSON response (JWT protected)
+POST /chat/stream           →  Server-Sent Events (JWT protected)
+POST /chat/search/stream    →  Live web search + streaming SSE (JWT protected)
 """
 
 import os
@@ -32,6 +33,15 @@ import sys
 from pathlib import Path
 from supabase import create_client, Client
 load_dotenv()
+
+# ── Live Search Modules ────────────────────────────────────────────────
+try:
+    from search_router import route_and_search, needs_web_search
+    from prompt_builder import build_search_aware_prompt, format_sources_for_response
+    SEARCH_AVAILABLE = True
+except ImportError as e:
+    logger.warning(f"Search modules not available: {e}")
+    SEARCH_AVAILABLE = False
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -556,7 +566,8 @@ async def get_session_messages(session_id: str, user_email: str = Depends(verify
                 if str(sid) == str(session_id):
                     return [{
                         "role": "ai" if m["role"] in ["assistant", "ai"] else m["role"], 
-                        "content": m["content"]
+                        "content": m["content"],
+                        "sources": m.get("sources", [])
                     } for m in s]
 
             return []
@@ -608,7 +619,7 @@ def update_memories(body: MemoriesModel, username: str = Depends(verify_token)):
     save_users(users)
     return {"status": "success", "memories": body}
 
-def save_to_db(user_email: str, role: str, content: str, session_id: str = None, session_title: str = None):
+def save_to_db(user_email: str, role: str, content: str, session_id: str = None, session_title: str = None, sources: list = None):
     """Background helper to save chat to MongoDB"""
     if chat_history_col is None:
         return
@@ -622,6 +633,7 @@ def save_to_db(user_email: str, role: str, content: str, session_id: str = None,
         }
         if session_id: data["session_id"] = session_id
         if session_title: data["session_title"] = session_title
+        if sources: data["sources"] = sources
         chat_history_col.insert_one(data)
     except Exception as e:
         logger.error(f"❌ Failed to save to DB: {e}")
@@ -766,6 +778,144 @@ async def chat_stream(body: ChatRequest, background_tasks: BackgroundTasks, user
         finally:
             # Clean up if connection closed
             pass
+
+    return StreamingResponse(
+        generate(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no", "Connection": "keep-alive"},
+    )
+
+# ── Live Web Search + Streaming Endpoint ──────────────────────────────
+
+class SearchChatRequest(BaseModel):
+    message: str = Field(..., min_length=1, max_length=1000)
+    history: List[Message] = []
+    session_id: Optional[str] = None
+    force_search: bool = False  # allow frontend to force web search
+
+@app.post("/chat/search/stream", tags=["search"])
+async def chat_search_stream(
+    body: SearchChatRequest,
+    background_tasks: BackgroundTasks,
+    user: str = Depends(verify_token)
+):
+    """
+    Enhanced streaming endpoint with live web search.
+    1. Detects if the query needs web search
+    2. Queries Wikipedia / DuckDuckGo / Jina Reader
+    3. Injects context into the AI prompt
+    4. Streams the AI response with source citations
+    """
+    users = load_users()
+    session_id = body.session_id or f"sess_{int(time.time())}"
+    session_title = body.message[:50]
+    queue: asyncio.Queue = asyncio.Queue()
+
+    # Save user message to DB
+    if chat_history_col is not None:
+        background_tasks.add_task(save_to_db, user, "user", body.message, session_id, session_title)
+        if not body.session_id:
+            background_tasks.add_task(generate_chat_title, user, session_id, body.message)
+
+    async def worker():
+        full_reply = []
+        sources = []
+        try:
+            # Step 1: Emit session ID
+            await queue.put(json.dumps({"session_id": session_id}))
+
+            # Step 2: Detect and run web search
+            do_search = SEARCH_AVAILABLE and (body.force_search or needs_web_search(body.message))
+
+            if do_search:
+                await queue.put(json.dumps({"status": "searching", "message": "Searching sources..."}))
+                try:
+                    search_result = await route_and_search(body.message)
+                    sources = search_result.get("sources", [])
+                    context = search_result.get("context", "")
+
+                    if sources:
+                        await queue.put(json.dumps({
+                            "status": "sources_found",
+                            "sources": sources,
+                            "message": f"Found {len(sources)} sources"
+                        }))
+                except Exception as search_err:
+                    logger.warning(f"Search failed, falling back to model only: {search_err}")
+                    context = ""
+                    sources = []
+            else:
+                context = ""
+
+            # Step 3: Build messages with injected context
+            base_messages = build_history(body.history, user, users) if not do_search else \
+                build_search_aware_prompt(SYSTEM_PROMPT, body.message, context, sources)
+
+            # Add conversation history for context
+            if do_search and body.history:
+                for m in body.history[-6:]:  # last 3 exchanges
+                    role = "user" if m.role == "user" else "assistant"
+                    base_messages.append({"role": role, "content": m.text})
+
+            base_messages.append({"role": "user", "content": body.message})
+
+            # Step 4: Stream AI response
+            await queue.put(json.dumps({"status": "generating", "message": "Generating response..."}))
+
+            for attempt in range(MAX_RETRIES):
+                try:
+                    stream = await client.chat.completions.create(
+                        messages=base_messages,
+                        model=MODEL_NAME,
+                        temperature=0.7,
+                        max_tokens=1536,
+                        stream=True,
+                    )
+
+                    async for chunk in stream:
+                        content = chunk.choices[0].delta.content
+                        if content:
+                            full_reply.append(content)
+                            await queue.put(json.dumps({"text": content}))
+
+                    # NOTE: Sources are sent as structured JSON events (not text)
+                    # The frontend SourcesBar component renders them as premium UI
+
+                    # Save to DB
+                    if chat_history_col is not None and full_reply:
+                        background_tasks.add_task(
+                            save_to_db, user, "assistant", "".join(full_reply), session_id, session_title, sources
+                        )
+
+                    await queue.put("[DONE]")
+                    return
+
+                except Exception as exc:
+                    if is_rate_limit_error(exc) and attempt < MAX_RETRIES - 1:
+                        await asyncio.sleep(RETRY_DELAY)
+                        continue
+                    await queue.put(json.dumps({"error": str(exc)[:120]}))
+                    await queue.put("[DONE]")
+                    return
+
+        except Exception as e:
+            logger.error(f"Search stream worker error: {e}")
+            await queue.put(json.dumps({"error": str(e)[:120]}))
+            await queue.put("[DONE]")
+
+    asyncio.create_task(worker())
+
+    async def generate():
+        while True:
+            try:
+                item = await asyncio.wait_for(queue.get(), timeout=90.0)
+            except asyncio.TimeoutError:
+                yield "data: " + json.dumps({"error": "Search timed out."}) + "\n\n"
+                break
+            if item == "[DONE]":
+                yield "data: [DONE]\n\n"
+                break
+            yield f"data: {item}\n\n"
 
     return StreamingResponse(
         generate(),

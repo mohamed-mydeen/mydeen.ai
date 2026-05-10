@@ -154,6 +154,14 @@ function NewSearchBar({ onSubmit, onPlusClick, isProcessing, isMenuOpen }) {
 }
 
 function NewHome({ onNavigate, onGoToChat }) {
+  const { user: supaUser } = useAuth();
+  const displayName = supaUser?.user_metadata?.full_name 
+                   || supaUser?.user_metadata?.name 
+                   || localStorage.getItem("user_name") 
+                   || "";
+  const firstName = displayName.split(" ")[0];
+  const greetingName = firstName ? ` ${firstName}` : "";
+
   const ALL_TRENDS = [
     { emoji: "🏏", label: "IPL 2024 latest match scores" },
     { emoji: "🌦️", label: "Heatwave updates in India" },
@@ -191,7 +199,7 @@ function NewHome({ onNavigate, onGoToChat }) {
       </div>
 
       <div className="new-home__greeting">
-        <p className="new-home__hey">Hey there, Mydeen!</p>
+        <p className="new-home__hey">Hey there{greetingName}!</p>
         <h2 className="new-home__mind">What's on your mind?</h2>
       </div>
 
@@ -393,76 +401,63 @@ function SettingsPage({ onNavigate, onLogout }) {
 /* ─── About Page ─────────────────────────────────────────────────────── */
 function AboutPage() {
   return (
-    <main className="main-canvas page-view" id="about-page">
-      <div className="page-header">
-        <span className="material-symbols-outlined page-header__icon">info</span>
-        <h2 className="page-header__title">About</h2>
-      </div>
-
-      <div className="about-art-banner">
-        <img 
-          src="https://images.unsplash.com/photo-1547826039-bfc35e0f1ea8?auto=format&fit=crop&q=80&w=1000" 
-          alt="Abstract Art" 
-          className="about-art-banner__img"
-        />
-        <div className="about-art-banner__overlay">
-          <h2 className="about-art-banner__logo">Mydeen<span>Portfolio</span></h2>
-          <a href="https://mydeen.vercel.app/" target="_blank" rel="noopener noreferrer" className="about-art-banner__btn">
-            Learn more
-          </a>
+    <main className="main-canvas page-view" id="about-page" style={{ padding: '40px 20px', maxWidth: '640px', margin: '0 auto' }}>
+      
+      {/* Header section: sleek, text-driven */}
+      <div style={{ marginBottom: '48px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '24px' }}>
+          <MydeenLogo size={42} />
+          <div>
+            <h2 style={{ fontSize: '22px', fontWeight: '500', color: 'var(--color-on-surface)', letterSpacing: '-0.02em', margin: 0 }}>Mydeen AI</h2>
+            <p style={{ fontSize: '13px', color: 'var(--color-on-surface-variant)', marginTop: '4px', letterSpacing: '0.02em' }}>VERSION 1.1.0</p>
+          </div>
         </div>
-      </div>
-
-      <div className="about-card">
-        <MydeenLogo />
-        <h3 className="about-card__name">Mydeen AI</h3>
-        <p className="about-card__version">Version 1.0.0</p>
-        <p className="about-card__desc">
-          Your personal AI study assistant — built to help you learn faster, 
-          understand deeper, and ace your exams with confidence.
+        <p style={{ fontSize: '15px', color: 'var(--color-on-surface)', lineHeight: '1.6', maxWidth: '540px', fontWeight: '400' }}>
+          Engineered with precision to act as your ultimate personal study assistant. Built to help you learn faster, understand complex concepts deeply, and ace your exams with total confidence.
         </p>
       </div>
 
-      <div className="settings-group">
-        <h3 className="settings-group__label">Features</h3>
-        {[
-          { icon: "auto_awesome",    text: "AI-powered explanations" },
-          { icon: "edit_note",       text: "Smart note generation" },
-          { icon: "quiz",            text: "Exam-focused Q&A" },
-          { icon: "picture_as_pdf",  text: "PDF summarization" },
-          { icon: "history",         text: "Chat history" },
-        ].map(f => (
-          <div className="settings-item" key={f.text}>
-            <div className="settings-item__info">
-              <span className="material-symbols-outlined">{f.icon}</span>
-              <p className="settings-item__name">{f.text}</p>
+      {/* Capabilities: minimalist list, no boxy borders */}
+      <div style={{ marginBottom: '48px' }}>
+        <h3 style={{ fontSize: '12px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--color-on-surface-variant)', marginBottom: '20px' }}>Capabilities</h3>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          {[
+            { icon: "auto_awesome",    text: "AI-powered explanations", desc: "State-of-the-art intelligent synthesis and generation." },
+            { icon: "travel_explore",  text: "Live Web Search", desc: "Real-time data retrieval for up-to-the-minute accuracy." },
+            { icon: "edit_note",       text: "Smart note generation", desc: "Instant lecture summarization and key takeaways." },
+            { icon: "quiz",            text: "Exam-focused Q&A", desc: "Rigorous practice with dynamically generated test questions." },
+          ].map(f => (
+            <div key={f.text} style={{ display: 'flex', gap: '16px', alignItems: 'flex-start' }}>
+              <span className="material-symbols-outlined" style={{ color: 'var(--color-on-surface-variant)', fontSize: '20px', marginTop: '2px' }}>{f.icon}</span>
+              <div>
+                <p style={{ fontSize: '14px', fontWeight: '500', color: 'var(--color-on-surface)', marginBottom: '4px' }}>{f.text}</p>
+                <p style={{ fontSize: '13px', color: 'var(--color-on-surface-variant)', lineHeight: '1.5' }}>{f.desc}</p>
+              </div>
             </div>
-            <span className="material-symbols-outlined" style={{ color: "#10b981", fontSize: 20 }}>check_circle</span>
-          </div>
-        ))}
+          ))}
+        </div>
       </div>
 
-      <div className="settings-group">
-        <h3 className="settings-group__label">Powered by</h3>
-        <div className="settings-item">
-          <div className="settings-item__info">
-            <span className="material-symbols-outlined">memory</span>
-            <div>
-              <p className="settings-item__name">Google Gemini Flash</p>
-              <p className="settings-item__desc">State-of-the-art language model</p>
-            </div>
+      {/* Developer info: clean, subtle card */}
+      <div style={{ marginBottom: '48px' }}>
+        <h3 style={{ fontSize: '12px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--color-on-surface-variant)', marginBottom: '20px' }}>Developer</h3>
+        <div style={{ padding: '20px', background: 'var(--color-surface-container-low)', borderRadius: '12px', display: 'flex', gap: '16px', alignItems: 'flex-start' }}>
+          <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: 'var(--color-surface-container-highest)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--color-on-surface)', fontSize: '16px', fontWeight: '500', flexShrink: 0 }}>
+            M
           </div>
-        </div>
-        <div className="settings-item">
-          <div className="settings-item__info">
-            <span className="material-symbols-outlined">code</span>
-            <div>
-              <p className="settings-item__name">FastAPI + React</p>
-              <p className="settings-item__desc">Modern full-stack architecture</p>
-            </div>
+          <div>
+            <p style={{ fontSize: '15px', fontWeight: '500', color: 'var(--color-on-surface)', marginBottom: '2px' }}>Mohamed Mydeen S</p>
+            <p style={{ fontSize: '13px', color: 'var(--color-on-surface-variant)', marginBottom: '12px' }}>Full Stack Developer & AI Enthusiast</p>
+            <p style={{ fontSize: '13px', color: 'var(--color-on-surface-variant)', lineHeight: '1.5', marginBottom: '16px' }}>
+              Focused on crafting seamless, premium AI experiences. Mydeen AI leverages cutting-edge LLMs and real-time integrations to provide an unparalleled learning ecosystem.
+            </p>
+            <a href="https://mydeen.vercel.app/" target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '13px', fontWeight: '500', color: 'var(--color-primary)', textDecoration: 'none' }}>
+              View Portfolio <span className="material-symbols-outlined" style={{ fontSize: '14px' }}>arrow_outward</span>
+            </a>
           </div>
         </div>
       </div>
+
     </main>
   );
 }

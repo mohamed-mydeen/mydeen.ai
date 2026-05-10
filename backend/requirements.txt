@@ -9,3 +9,4 @@ beautifulsoup4
 supabase
 pydantic
 python-multipart
+python-whois

@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import ReactMarkdown from "react-markdown";
-import { sendMessage, streamMessage } from "../api/chatApi";
+import { streamMessage, streamSearchMessage } from "../api/chatApi";
 import { useAuth } from "../context/AuthContext";
 
 /* ─── Small sub-components ─────────────────────────────────────────── */
@@ -11,6 +11,89 @@ function TypingIndicator() {
       <div className="chat-msg__bubble chat-msg__bubble--ai typing-indicator">
         <span /><span /><span />
       </div>
+    </div>
+  );
+}
+
+const getFavicon = (url) => {
+  try {
+    const domain = new URL(url).hostname;
+    return `https://www.google.com/s2/favicons?sz=32&domain=${domain}`;
+  } catch {
+    return null;
+  }
+};
+
+const getSiteName = (url, title, source) => {
+  try {
+    const domain = new URL(url).hostname.replace('www.', '');
+    if (domain.includes('wikipedia')) return 'Wikipedia';
+    if (domain.includes('hindustantimes')) return 'Hindustan Times';
+    if (domain.includes('timesofindia')) return 'Times of India';
+    return domain.split('.')[0]; // e.g. "thehindu"
+  } catch {
+    return source || title?.slice(0, 10) || 'Web';
+  }
+};
+
+/** Perplexity-style sources bar with real favicons */
+function SourcesBar({ sources }) {
+  const [expanded, setExpanded] = useState(false);
+  if (!sources || sources.length === 0) return null;
+
+  const SHOW_MAX = 3;
+  const visible = expanded ? sources : sources.slice(0, SHOW_MAX);
+  const overflow = sources.length - SHOW_MAX;
+
+  return (
+    <div className="chatgpt-sources-container">
+      <button
+        className={`chatgpt-sources-toggle ${expanded ? 'chatgpt-sources-toggle--active' : ''}`}
+        onClick={() => setExpanded(v => !v)}
+        aria-expanded={expanded}
+      >
+        <div className="chatgpt-sources-avatars">
+          {sources.slice(0, 3).map((s, i) => (
+            <div key={i} className="chatgpt-sources-avatar" style={{ zIndex: 3 - i }}>
+              {getFavicon(s.url) ? (
+                <img
+                  src={getFavicon(s.url)}
+                  alt={getSiteName(s.url, s.title, s.source)}
+                  className="chatgpt-sources-favicon"
+                  onError={e => { e.target.style.display='none'; e.target.nextSibling.style.display='flex'; }}
+                />
+              ) : null}
+              <span className="chatgpt-sources-fallback" style={{display:'none'}}>
+                {getSiteName(s.url, s.title, s.source).slice(0,1).toUpperCase()}
+              </span>
+            </div>
+          ))}
+          {overflow > 0 && (
+            <div className="chatgpt-sources-avatar chatgpt-sources-avatar--more">
+              N
+            </div>
+          )}
+        </div>
+        <span className="chatgpt-sources-label">Sources</span>
+      </button>
+
+      {expanded && (
+        <div className="chatgpt-sources-list">
+          {visible.map((s, i) => (
+            <a key={i} href={s.url} target="_blank" rel="noopener noreferrer" className="chatgpt-source-card" title={s.title}>
+              <div className="chatgpt-source-icon">
+                {getFavicon(s.url) ? (
+                  <img src={getFavicon(s.url)} alt="" className="chatgpt-sources-favicon" onError={e => { e.target.style.display='none'; }} />
+                ) : null}
+              </div>
+              <div className="chatgpt-source-info">
+                <span className="chatgpt-source-title">{s.title?.slice(0, 60) || s.url}</span>
+                <span className="chatgpt-source-site">{getSiteName(s.url, s.title, s.source)}</span>
+              </div>
+            </a>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -57,7 +140,7 @@ function MydeenLogo({ size = 72 }) {
   );
 }
 
-function ChatMessage({ role, text, onEdit, onRegenerate, isLast, isStreaming }) {
+function ChatMessage({ role, text, sources, onEdit, onRegenerate, isLast, isStreaming }) {
   const isUser = role === "user";
   const [copied, setCopied] = useState(false);
   const [shared, setShared] = useState(false);
@@ -123,6 +206,14 @@ function ChatMessage({ role, text, onEdit, onRegenerate, isLast, isStreaming }) 
             <div className="markdown-content">
               <ReactMarkdown>{text}</ReactMarkdown>
               {isStreaming && <span className="streaming-cursor" />}
+              
+              {/* Inline Citation Pill inside bubble (ChatGPT style) */}
+              {!isStreaming && sources && sources.length > 0 && (
+                <div className="inline-citation-pill" title="View Sources">
+                  {getSiteName(sources[0].url, sources[0].title, sources[0].source)}
+                  {sources.length > 1 && <span className="inline-citation-pill__more">+{sources.length - 1}</span>}
+                </div>
+              )}
             </div>
           </div>
           <div className="chat-msg__actions chat-msg__actions--ai">
@@ -133,6 +224,12 @@ function ChatMessage({ role, text, onEdit, onRegenerate, isLast, isStreaming }) 
               title="Copy response"
             >
               <span className="material-symbols-outlined">{copied ? "check" : "content_copy"}</span>
+            </button>
+            <button type="button" className="chat-msg__action-btn" title="Good response">
+              <span className="material-symbols-outlined">thumb_up</span>
+            </button>
+            <button type="button" className="chat-msg__action-btn" title="Bad response">
+              <span className="material-symbols-outlined">thumb_down</span>
             </button>
             <button
               type="button"
@@ -152,8 +249,17 @@ function ChatMessage({ role, text, onEdit, onRegenerate, isLast, isStreaming }) 
                 <span className="material-symbols-outlined">cached</span>
               </button>
             )}
+            
+            {/* ChatGPT-style Action Bar Sources Button */}
+            {!isStreaming && sources && sources.length > 0 && (
+              <>
+                <div className="chat-msg__actions-spacer" style={{ flex: 1 }}></div>
+                <SourcesBar sources={sources} />
+              </>
+            )}
           </div>
         </div>
+
       )}
     </div>
   );
@@ -177,9 +283,13 @@ export default function Chat({
   const [isThinking, setIsThinking] = useState(false);
   const [streamingMessage, setStreamingMessage] = useState("");
   const [sessionId, setSessionId]   = useState(initialQuery?.sessionId);
-  const [retryState, setRetryState] = useState(null); 
+  const [retryState, setRetryState] = useState(null);
   const [isListening, setIsListening] = useState(false);
   const [showScrollBtn, setShowScrollBtn] = useState(false);
+  // ── Web Search State ────────────────────────────────────────────────────
+  const [webSearchEnabled, setWebSearchEnabled] = useState(true); // ON by default
+  const [searchStatus, setSearchStatus]         = useState(null);
+  const [searchSources, setSearchSources]       = useState([]);
 
   const bottomRef      = useRef(null);
   const topRef         = useRef(null);
@@ -282,8 +392,7 @@ export default function Chat({
 
     const sidToUse = currentSid !== undefined ? currentSid : sessionId;
 
-    // 1. Prepare history and state
-    const newMessages = overrideHistory 
+    const newMessages = overrideHistory
       ? [...overrideHistory, { role: "user", text: trimmed }]
       : [...messages, { role: "user", text: trimmed }];
 
@@ -297,25 +406,57 @@ export default function Chat({
     setLoading(true);
     setIsThinking(true);
     setStreamingMessage("");
+    setSearchStatus(null);
+    setSearchSources([]);
 
-    // 2. Start streaming (OUTSIDE of setMessages)
     (async () => {
       try {
         let fullReply = "";
-        await streamMessage(trimmed, historyToUse, sidToUse, (chunk) => {
-          setIsThinking(false);
-          setStreamingMessage(prevStr => prevStr + chunk);
-          fullReply += chunk;
-        }, (sid) => {
-          if (!sidToUse) setSessionId(sid);
-        });
+        let finalSources = [];
 
-        // Streaming finished
-        setMessages(p => [...p, { role: "assistant", text: fullReply }]);
+        if (webSearchEnabled) {
+          // ── Use live web search endpoint ──────────────────────────
+          await streamSearchMessage(
+            trimmed,
+            historyToUse,
+            sidToUse,
+            false, // auto-detect (not forced)
+            (chunk) => {
+              setIsThinking(false);
+              setStreamingMessage(prev => prev + chunk);
+              fullReply += chunk;
+            },
+            (statusUpdate) => {
+              setIsThinking(false);
+              setSearchStatus(statusUpdate);
+            },
+            (sources) => {
+              finalSources = sources;
+              setSearchSources(sources);
+              setSearchStatus({ status: "generating", message: "Generating response..." });
+            },
+            (sid) => {
+              if (!sidToUse) setSessionId(sid);
+            }
+          );
+        } else {
+          // ── Standard streaming endpoint ────────────────────────────
+          await streamMessage(trimmed, historyToUse, sidToUse, (chunk) => {
+            setIsThinking(false);
+            setStreamingMessage(prev => prev + chunk);
+            fullReply += chunk;
+          }, (sid) => {
+            if (!sidToUse) setSessionId(sid);
+          });
+        }
+
+        setMessages(p => [...p, { role: "assistant", text: fullReply, sources: finalSources }]);
         setStreamingMessage("");
+        setSearchStatus(null);
       } catch (err) {
         console.error("Streaming error:", err);
         setMessages(p => [...p, { role: "assistant", text: "⚠️ AI error, please try again." }]);
+        setSearchStatus(null);
       } finally {
         setLoading(false);
         setIsThinking(false);
@@ -364,7 +505,7 @@ export default function Chat({
         
         if (response.ok) {
           const data = await response.json();
-          setMessages(data.map(m => ({ role: m.role, text: m.content })));
+          setMessages(data.map(m => ({ role: m.role, text: m.content, sources: m.sources })));
           setSessionId(sid);
         }
       } catch (err) {
@@ -419,6 +560,7 @@ export default function Chat({
               key={idx}
               role={msg.role === "assistant" ? "ai" : msg.role}
               text={msg.text}
+              sources={msg.sources}
               onEdit={handleEdit}
               onRegenerate={handleRegenerate}
               isLast={idx === messages.length - 1}
@@ -431,10 +573,29 @@ export default function Chat({
                 <MydeenLogo size={32} />
               </div>
               <div className="chat-msg__bubble-wrapper--ai">
-                <div className="thinking-text">
-                  Thinking<span className="thinking-dot"></span><span className="thinking-dot"></span><span className="thinking-dot"></span>
-                </div>
+                {searchStatus ? (
+                  <div className="search-status-banner">
+                    <span className="search-status-icon material-symbols-outlined">
+                      {searchStatus.status === "searching" ? "travel_explore" :
+                       searchStatus.status === "sources_found" ? "library_books" : "auto_awesome"}
+                    </span>
+                    <span className="search-status-text">{searchStatus.message}</span>
+                  </div>
+                ) : (
+                  <div className="thinking-text">
+                    Thinking<span className="thinking-dot"></span><span className="thinking-dot"></span><span className="thinking-dot"></span>
+                  </div>
+                )}
               </div>
+            </div>
+          )}
+
+          {searchStatus && !isThinking && (
+            <div className="search-status-banner search-status-banner--inline">
+              <span className="search-status-icon material-symbols-outlined">
+                {searchStatus.status === "generating" ? "auto_awesome" : "travel_explore"}
+              </span>
+              <span className="search-status-text">{searchStatus.message}</span>
             </div>
           )}
 
@@ -466,7 +627,7 @@ export default function Chat({
       )}
 
       <footer className="new-search-container">
-        <form 
+        <form
           className="new-search-bar"
           onSubmit={(e) => {
             e.preventDefault();
@@ -499,6 +660,21 @@ export default function Chat({
             </button>
 
             <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+              {/* Web Search Toggle */}
+              <button
+                type="button"
+                aria-label={webSearchEnabled ? "Web search on" : "Web search off"}
+                title={webSearchEnabled ? "Live web search ON — click to disable" : "Live web search OFF — click to enable"}
+                className={`new-search-btn-mic web-search-toggle ${webSearchEnabled ? "web-search-toggle--on" : ""}`}
+                onClick={() => setWebSearchEnabled(v => !v)}
+                disabled={loading}
+                style={{ width: '32px', height: '32px' }}
+              >
+                <span className="material-symbols-outlined" style={{ fontSize: '16px' }}>
+                  {webSearchEnabled ? "travel_explore" : "language"}
+                </span>
+              </button>
+
               <button
                 type="button"
                 aria-label="Voice input"

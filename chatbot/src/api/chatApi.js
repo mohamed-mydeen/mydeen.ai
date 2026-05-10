@@ -152,3 +152,71 @@ export async function archiveChat(sessionId, archived = true) {
   const res = await api.patch(`/history/${sessionId}/archive`, { archived });
   return res.data;
 }
+
+/**
+ * Send a message through the live web search + streaming pipeline.
+ * Calls /chat/search/stream which auto-detects search intent and
+ * fetches live context from Wikipedia / DuckDuckGo / Jina Reader.
+ */
+export async function streamSearchMessage(
+  message,
+  history = [],
+  session_id = null,
+  force_search = false,
+  onChunk,
+  onStatus,
+  onSources,
+  onSession
+) {
+  const { data: { session } } = await supabase.auth.getSession();
+  const token = session?.access_token ?? localStorage.getItem("auth_token");
+
+  const response = await fetch(
+    `${import.meta.env.VITE_API_URL || "http://127.0.0.1:8000"}/chat/search/stream`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${token}`,
+      },
+      body: JSON.stringify({ message, history, session_id, force_search }),
+    }
+  );
+
+  if (!response.ok) {
+    const errData = await response.json().catch(() => ({}));
+    throw new Error(errData.detail || "Search stream failed");
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split("\n\n");
+    buffer = lines.pop();
+
+    for (const line of lines) {
+      if (!line.startsWith("data: ")) continue;
+      const dataStr = line.replace("data: ", "").trim();
+      if (dataStr === "[DONE]") continue;
+
+      try {
+        const parsed = JSON.parse(dataStr);
+        if (parsed.session_id && onSession) onSession(parsed.session_id);
+        if (parsed.status && onStatus)      onStatus({ status: parsed.status, message: parsed.message });
+        if (parsed.sources && onSources)    onSources(parsed.sources);
+        if (parsed.text && onChunk)         onChunk(parsed.text);
+        if (parsed.error)                   throw new Error(parsed.error);
+      } catch (e) {
+        if (e.message && !e.message.includes("JSON")) throw e;
+        console.warn("Could not parse search stream chunk:", e);
+      }
+    }
+  }
+}
+
