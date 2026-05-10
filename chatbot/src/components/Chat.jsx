@@ -242,7 +242,7 @@ function ChatMessage({ role, text, sources, onEdit, onRegenerate, isLast, isStre
               className={`chat-msg__action-btn ${feedback === 'like' ? "chat-msg__action-btn--active" : ""}`} 
               onClick={() => setFeedback(feedback === 'like' ? null : 'like')}
               title="Good response"
-              style={{ color: feedback === 'like' ? '#10b981' : 'inherit' }}
+              style={{ color: feedback === 'like' ? '#10b981' : 'var(--color-on-surface-variant)' }}
             >
               <span className="material-symbols-outlined" style={{ fontVariationSettings: feedback === 'like' ? "'FILL' 1" : "none" }}>thumb_up</span>
             </button>
@@ -251,7 +251,7 @@ function ChatMessage({ role, text, sources, onEdit, onRegenerate, isLast, isStre
               className={`chat-msg__action-btn ${feedback === 'dislike' ? "chat-msg__action-btn--active" : ""}`} 
               onClick={() => setFeedback(feedback === 'dislike' ? null : 'dislike')}
               title="Bad response"
-              style={{ color: feedback === 'dislike' ? '#ef4444' : 'inherit' }}
+              style={{ color: feedback === 'dislike' ? '#ef4444' : 'var(--color-on-surface-variant)' }}
             >
               <span className="material-symbols-outlined" style={{ fontVariationSettings: feedback === 'dislike' ? "'FILL' 1" : "none" }}>thumb_down</span>
             </button>
