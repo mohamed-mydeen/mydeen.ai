@@ -6058,6 +6058,11 @@ body {
   font-size: 16px;
   font-weight: 500;
   color: #ffffff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+  display: block;
 }
 
 .claude-badge-free {
@@ -6350,16 +6355,17 @@ body {
   bottom: 0;
   left: 50%;
   transform: translateX(-50%);
-  padding: 16px;
-  background: linear-gradient(to top, rgba(0,0,0,0.9) 20%, transparent 100%);
+  padding: 12px 16px;
+  /* Use a much subtler background or none to avoid "black bar" feel */
+  background: linear-gradient(to top, rgba(0,0,0,0.4) 0%, transparent 100%);
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 8px;
   width: 100%;
   max-width: 800px;
   z-index: 1000;
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  /* Adjust for bottom safe area without creating a black gap */
+  padding-bottom: max(16px, calc(16px + var(--sab)));
 }
 
 .ios-glass-bar {
@@ -6403,6 +6409,13 @@ body {
 
 .smart-action-btn:hover {
   background: rgba(255, 255, 255, 0.12);
+}
+
+.new-search-actions-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
 }
 
 .new-search-btn-add {
@@ -7072,11 +7085,17 @@ a,
 
 /* ── Sidebar: full-height with safe areas ────────────────────────── */
 .sidebar {
-  padding-top: max(0px, var(--sat));
+  padding-top: max(20px, var(--sat));
   padding-bottom: max(var(--space-md), calc(var(--space-md) + var(--sab)));
   /* Use dvh for reliable full-height */
   height: 100dvh;
   max-height: 100dvh;
+  /* Ensure animations are consistent */
+  transition: transform 0.4s cubic-bezier(0.2, 0.8, 0.2, 1) !important;
+}
+
+.about-page {
+  padding-top: calc(80px + var(--sat)) !important; /* Fix logo cut off */
 }
 
 /* ── Page transitions: smooth & native ───────────────────────────── */
@@ -7456,7 +7475,26 @@ textarea {
 
 /* ── Performance: GPU compositing hints ─────────────────────────── */
 .chat-messages,
-.sidebar,
+.sidebar {
+  /* ... existing styles ... */
+  transition: transform 0.4s cubic-bezier(0.33, 1, 0.68, 1) !important;
+}
+
+/* Ensure body background is black in dark mode to avoid gaps */
+[data-theme="dark"] body,
+[data-theme="dark"] .app-viewport {
+  background-color: #000000 !important;
+}
+
+.smart-search-container {
+  background: transparent !important; /* Remove background bar */
+  padding-bottom: max(12px, var(--sab)) !important;
+}
+
+.ios-glass-bar {
+  /* Match app background more closely on mobile to avoid "bar" look */
+  background: rgba(255, 255, 255, 0.08) !important;
+}
 .app-viewport,
 .home-layout-wrapper {
   will-change: transform;
@@ -7792,5 +7830,80 @@ textarea {
   z-index: 10000;
   animation: v2FadeSlideUp 0.3s ease both;
 }
+
+
+/* Voice Assistant Settings Panel */
+.voice-v2-settings-panel {
+  position: absolute;
+  top: 80px;
+  right: 24px;
+  width: 240px;
+  background: rgba(20, 20, 20, 0.95);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 20px;
+  padding: 20px;
+  z-index: 100;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+  animation: v2FadeSlideUp 0.3s ease both;
+}
+
+.voice-v2-settings-panel h3 {
+  font-size: 14px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.5);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 16px;
+  margin-top: 0;
+}
+
+.voice-v2-pref-row {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.voice-v2-pref-btn {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 500;
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+.voice-v2-pref-btn.active {
+  background: var(--v2-accent);
+  border-color: var(--v2-accent);
+  box-shadow: 0 0 15px var(--v2-accent);
+}
+
+.voice-v2-settings-close {
+  width: 100%;
+  margin-top: 20px;
+  padding: 10px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.voice-v2-theme-indicator {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  box-shadow: 0 0 10px currentColor;
+  transition: all 0.5s ease;
+}
+
 
 

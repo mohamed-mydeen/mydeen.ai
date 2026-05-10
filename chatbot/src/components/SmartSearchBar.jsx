@@ -36,7 +36,6 @@ export default function SmartSearchBar({
   const [suggestionIndex, setSuggestionIndex] = useState(0);
   const [isTyping, setIsTyping] = useState(true);
 
-  // Typewriter effect logic
   useEffect(() => {
     if (!showTypewriter) return;
 
@@ -124,7 +123,6 @@ export default function SmartSearchBar({
           className={`new-search-btn-add ${isMenuOpen ? "active" : ""}`}
           onClick={onPlusClick}
           disabled={isProcessing}
-          style={{ marginRight: '12px' }}
         >
           <span className="material-symbols-outlined">
             {isProcessing ? "sync" : isMenuOpen ? "close" : "add"}
@@ -152,51 +150,60 @@ export default function SmartSearchBar({
           </div>
         </div>
 
-        <div className="new-search-actions">
-          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-            {/* Web Search Toggle */}
-            {onToggleWebSearch && (
+        <div className="new-search-actions-group">
+          {/* Web Search Toggle */}
+          {onToggleWebSearch && !query.trim() && (
+            <button
+              type="button"
+              className={`smart-action-btn ${webSearchEnabled ? "active" : ""}`}
+              onClick={onToggleWebSearch}
+              title="Web Search"
+            >
+              <span className="material-symbols-outlined">
+                {webSearchEnabled ? "travel_explore" : "language"}
+              </span>
+            </button>
+          )}
+
+          {/* Voice Assistant & Mic - Grouped */}
+          {!query.trim() && (
+            <>
               <button
                 type="button"
-                className={`smart-action-btn ${webSearchEnabled ? "active" : ""}`}
-                onClick={onToggleWebSearch}
-                title="Web Search"
+                className={`smart-action-btn ${isListening ? "active" : ""}`}
+                onClick={startListening}
+                disabled={isProcessing}
               >
-                <span className="material-symbols-outlined">
-                  {webSearchEnabled ? "travel_explore" : "language"}
-                </span>
+                <span className="material-symbols-outlined">{isListening ? "graphic_eq" : "mic"}</span>
               </button>
-            )}
 
-            {query.trim() && (
-              <button type="submit" className="smart-send-btn">
-                <span className="material-symbols-outlined">arrow_upward</span>
-              </button>
-            )}
-          </div>
+              {onVoiceClick && (
+                <button
+                  type="button"
+                  className="smart-action-btn smart-voice-assistant-btn"
+                  onClick={onVoiceClick}
+                  title="Voice Assistant"
+                  style={{ 
+                    marginLeft: '6px',
+                    backgroundColor: 'rgba(59, 130, 246, 0.15)',
+                    borderColor: 'rgba(59, 130, 246, 0.4)',
+                    color: '#3b82f6',
+                    boxShadow: '0 0 12px rgba(59, 130, 246, 0.3)'
+                  }}
+                >
+                  <span className="material-symbols-outlined" style={{ fontWeight: 'bold' }}>settings_voice</span>
+                </button>
+              )}
+            </>
+          )}
+
+          {/* Send Button */}
+          {query.trim() && (
+            <button type="submit" className="smart-send-btn">
+              <span className="material-symbols-outlined">arrow_upward</span>
+            </button>
+          )}
         </div>
-
-        <button
-          type="button"
-          className={`smart-action-btn ${isListening ? "active" : ""}`}
-          onClick={startListening}
-          disabled={isProcessing}
-          style={{ marginLeft: '8px' }}
-        >
-          <span className="material-symbols-outlined">{isListening ? "graphic_eq" : "mic"}</span>
-        </button>
-
-        {onVoiceClick && (
-          <button
-            type="button"
-            className="smart-action-btn smart-voice-assistant-btn"
-            onClick={onVoiceClick}
-            title="Voice Assistant"
-            style={{ marginLeft: '6px' }}
-          >
-            <span className="material-symbols-outlined">assistant</span>
-          </button>
-        )}
       </form>
     </footer>
   );

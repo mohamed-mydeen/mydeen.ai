@@ -22,7 +22,7 @@ function MydeenLogo({ size = 72 }) {
 
 export default function AboutPage() {
   return (
-    <main className="main-canvas page-view" id="about-page" style={{ padding: '40px 20px', maxWidth: '640px', margin: '0 auto' }}>
+    <main className="main-canvas page-view" id="about-page" style={{ padding: '40px 20px', maxWidth: '640px', margin: '50px auto' }}>
       
       {/* Header section: sleek, text-driven */}
       <div style={{ marginBottom: '48px' }}>

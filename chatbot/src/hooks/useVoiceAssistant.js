@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
  * useVoiceAssistant – manages STT, TTS, and streaming AI responses.
  * Completely free: Web Speech API for STT, SpeechSynthesis for TTS.
  */
-export function useVoiceAssistant({ onStreamChunk, onStreamDone }) {
+export function useVoiceAssistant({ onStreamChunk, onStreamDone, voicePreference = "female" }) {
   const [voiceState, setVoiceState] = useState("idle"); // idle | listening | thinking | speaking
   const [transcript, setTranscript]   = useState("");
   const [spokenText, setSpokenText]   = useState("");
@@ -68,15 +68,23 @@ export function useVoiceAssistant({ onStreamChunk, onStreamDone }) {
     synthRef.current.cancel();
     const utterance = new SpeechSynthesisUtterance(text);
 
-    // Pick best available voice
+    // Pick best available voice based on preference
     const voices = synthRef.current.getVoices();
-    const preferred = voices.find(v =>
-      v.lang.startsWith("en") && (v.name.includes("Female") || v.name.includes("Google") || v.name.includes("Natural"))
-    ) || voices.find(v => v.lang.startsWith("en")) || voices[0];
+    
+    let preferred;
+    if (voicePreference === "male") {
+      preferred = voices.find(v => v.lang.startsWith("en") && (v.name.toLowerCase().includes("male") || v.name.includes("David") || v.name.includes("Mark"))) ||
+                  voices.find(v => v.lang.startsWith("en"));
+    } else {
+      preferred = voices.find(v => v.lang.startsWith("en") && (v.name.toLowerCase().includes("female") || v.name.includes("Zira") || v.name.includes("Google UK English Female"))) ||
+                  voices.find(v => v.lang.startsWith("en") && v.name.includes("Natural")) ||
+                  voices.find(v => v.lang.startsWith("en"));
+    }
+    
     if (preferred) utterance.voice = preferred;
 
-    utterance.rate   = 1.05;
-    utterance.pitch  = 1.0;
+    utterance.rate   = 1.1; // Slightly faster for "Sky/Ember" feel
+    utterance.pitch  = voicePreference === "male" ? 0.9 : 1.1;
     utterance.volume = 1.0;
 
     utterance.onstart = () => setVoiceState("speaking");
@@ -85,7 +93,7 @@ export function useVoiceAssistant({ onStreamChunk, onStreamDone }) {
 
     utteranceRef.current = utterance;
     synthRef.current.speak(utterance);
-  }, []);
+  }, [voicePreference]);
 
   const stopSpeaking = useCallback(() => {
     synthRef.current.cancel();
