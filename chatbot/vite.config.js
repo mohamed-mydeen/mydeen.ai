@@ -14,7 +14,7 @@ export default defineConfig({
         short_name: 'Mydeen AI',
         description: 'Mydeen AI — Your versatile personal assistant. Get help with studies, daily tasks, and general questions instantly.',
         theme_color: '#000000',
-        background_color: '#000000',
+        background_color: '#ffffff',
         display: 'standalone',
         orientation: 'portrait',
         scope: '/',
