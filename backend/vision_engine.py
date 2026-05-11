@@ -49,9 +49,8 @@ def detect_text(img):
         text = pytesseract.image_to_string(thresh)
         return text.strip()
     except Exception as e:
-        logger.error(f"OCR Exception: {str(e)}")
-        if "tesseract is not installed" in str(e).lower() or "no such file" in str(e).lower():
-            return "ERROR: Tesseract OCR not found on system. Please install Tesseract-OCR binary."
+        # Soft fallback: Log the warning but don't crash. The system will use YOLO instead.
+        logger.warning(f"OCR system not available or failed: {str(e)}")
         return ""
 
 def detect_objects(img):
