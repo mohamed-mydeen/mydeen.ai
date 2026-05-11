@@ -722,7 +722,8 @@ export default function Chat({
       ? [...overrideHistory, { role: "user", text: trimmed }]
       : [...messages, { role: "user", text: trimmed }];
 
-    const historyToUse = newMessages.slice(0, -1).map(m => ({
+    // Optimised: Slice history window to the last 10 messages to save token usage and prevent overhead
+    const historyToUse = newMessages.slice(0, -1).slice(-10).map(m => ({
       role: m.role,
       text: m.text || m.content || ""
     }));

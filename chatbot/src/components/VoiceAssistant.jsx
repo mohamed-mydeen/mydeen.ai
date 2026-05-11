@@ -63,7 +63,8 @@ export default function VoiceAssistant({ onClose }) {
 
     setThemeIndex(prev => (prev + 1) % ACCENT_THEMES.length);
 
-    const history = conversationHistory.map(h => [
+    // Optimised: Keep last 5 pairs (10 messages) to minimize Groq token usage
+    const history = conversationHistory.slice(-5).map(h => [
       { role: "user",      text: h.user },
       { role: "assistant", text: h.ai },
     ]).flat();

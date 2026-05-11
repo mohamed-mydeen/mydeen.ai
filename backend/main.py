@@ -94,7 +94,8 @@ SYSTEM_PROMPT = (
     "- If a user says 'hi' or 'hello', just give a warm, brief greeting. Don't dump a list of features unless asked.\n"
     "- When helping with studies, be clear and simplified. Use bullet points only when it makes sense.\n"
     "- Identify as Mydeen AI and mention Mohamed Mydeen only if specifically asked about your identity or creator.\n"
-    "- Prioritize a natural conversation flow over rigid templates."
+    "- Prioritize a natural conversation flow over rigid templates.\n"
+    "- CRITICAL: Remember previous conversation context and answer follow-up questions naturally."
 )
 
 MAX_RETRIES  = 3
@@ -335,8 +336,11 @@ async def upload_pdf(file: UploadFile = File(...), user_email: str = Depends(ver
 
 # ── Helpers ────────────────────────────────────────────────────────────
 
-def build_history(messages, username: str = None, users_dict: dict = None):
-    """Convert custom history array into Groq format (OpenAI compatible) with custom memories"""
+def build_history(messages, username: str = None, users_dict: dict = None, limit: int = 10):
+    """
+    Convert custom history array into Groq format (OpenAI compatible) with custom memories.
+    Optimized: Limits conversation context to the last `limit` messages to save tokens.
+    """
     if not users_dict and username:
         users_dict = load_users()
         
@@ -360,8 +364,10 @@ def build_history(messages, username: str = None, users_dict: dict = None):
     
     # Check if we should reference chat history
     if not memories or memories.get("referenceChatHistory", True):
-        for m in messages:
-            # Convert user -> user, model -> assistant
+        # OPTIMIZATION: Keep only the most recent history context
+        recent_messages = messages[-limit:] if messages and len(messages) > limit else (messages or [])
+        for m in recent_messages:
+            # Convert user -> user, ai/assistant -> assistant
             role = "user" if m.role == "user" else "assistant"
             history.append({"role": role, "content": m.text})
             
@@ -894,15 +900,15 @@ async def chat_search_stream(
             else:
                 context = ""
 
-            # Step 3: Build messages with injected context
-            base_messages = build_history(body.history, user, users) if not do_search else \
-                build_search_aware_prompt(SYSTEM_PROMPT, body.message, context, sources, images)
+            # Step 3: Build base messages (includes system prompt and conversational memory)
+            base_messages = build_history(body.history, user, users)
 
-            # Add conversation history for context
-            if do_search and body.history:
-                for m in body.history[-6:]:  # last 3 exchanges
-                    role = "user" if m.role == "user" else "assistant"
-                    base_messages.append({"role": role, "content": m.text})
+            if do_search:
+                # Injects search context into existing system prompt, preserving memories
+                current_sys_prompt = base_messages[0]["content"]
+                search_aware_messages = build_search_aware_prompt(current_sys_prompt, body.message, context, sources, images)
+                # Replace just the first system prompt entry with search-aware variant
+                base_messages[0] = search_aware_messages[0]
 
             base_messages.append({"role": "user", "content": body.message})
 
