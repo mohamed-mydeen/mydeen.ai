@@ -107,7 +107,9 @@ function NewHome({ onNavigate, onGoToChat }) {
   );
 }
 
-function SafetyAnalysisPage({ url, onComplete, results }) {
+function SafetyAnalysisPage({ url, onComplete, results, apiUrl }) {
+  const { getAccessToken, isAuthenticated } = useAuth();
+
   const [progress, setProgress] = useState(0);
   const [statusText, setStatusText] = useState("Initializing scanner...");
   const [data, setData] = useState(results);
@@ -136,14 +138,17 @@ function SafetyAnalysisPage({ url, onComplete, results }) {
       }, 500);
 
       try {
-        const response = await fetch("http://localhost:8000/detect_deceptive", {
+        const currentToken = isAuthenticated ? await getAccessToken() : localStorage.getItem("auth_token");
+        const response = await fetch(`${apiUrl}/detect_deceptive`, {
           method: "POST",
           headers: { 
             "Content-Type": "application/json",
-            "Authorization": `Bearer ${localStorage.getItem("auth_token")}`
+            "Authorization": `Bearer ${currentToken}`
           },
           body: JSON.stringify({ url }),
         });
+
+
         
         clearInterval(heartbeat);
         
@@ -175,66 +180,86 @@ function SafetyAnalysisPage({ url, onComplete, results }) {
 
   if (!data) {
     return (
-      <div className="safety-loader-page">
-        <div className="safety-loader-content">
-          <div className="safety-loader-icon">
+      <div className="safety-analysis-page">
+        <div className="scanner-visual">
+          <div className="scanner-ring"></div>
+          <div className="scanner-progress" style={{ transform: `rotate(${(progress * 3.6) - 45}deg)` }}></div>
+          <div className="scanner-icon">
             <span className="material-symbols-outlined spinning">shield</span>
           </div>
-          <h2 className="safety-loader-title">Security Analysis In Progress</h2>
-          <p className="safety-loader-url">{url}</p>
-          <div className="safety-progress-container">
-            <div className="safety-progress-bar" style={{ width: `${progress}%` }}></div>
-          </div>
-          <p className="safety-loader-status">{statusText}</p>
+        </div>
+        <h2 className="premium-modal__title">Security Analysis In Progress</h2>
+        <p className="premium-modal__text">Scanning: {url}</p>
+        <div className="options-search-box" style={{ marginTop: '24px', width: '100%', maxWidth: '400px' }}>
+          <span className="material-symbols-outlined">network_check</span>
+          <span className="option-search-input">{statusText}</span>
         </div>
       </div>
     );
   }
 
-  const isDanger = data.risk_score >= 70;
-  const isWarning = data.risk_score >= 45;
+  const score = data.risk_score;
+  const isDanger = score >= 70;
+  const isWarning = score >= 45;
+  const scoreClass = isDanger ? 'score-high' : isWarning ? 'score-medium' : 'score-low';
 
   return (
-    <main className="safety-dashboard">
-      <div className={`safety-hero ${isDanger ? 'hero-danger' : isWarning ? 'hero-warning' : 'hero-safe'}`}>
-        <span className="material-symbols-outlined hero-icon">
-          {isDanger ? 'gpp_bad' : isWarning ? 'warning' : 'verified_user'}
-        </span>
-        <h1 className="hero-title">{data.risk_category}</h1>
-        <div className="hero-score-badge">Risk Score: {data.risk_score}/100</div>
-      </div>
-
-      <div className="safety-dashboard-grid">
-        <div className="safety-card safety-ai-advice">
-          <h3><span className="material-symbols-outlined">psychology</span> AI Final Verdict</h3>
-          <p>{data.ai_advice}</p>
+    <div className="safety-analysis-page" style={{ justifyContent: 'flex-start' }}>
+      <div className="safety-report-card">
+        <div className="safety-report-header">
+          <div className={`safety-score-circle ${scoreClass}`}>
+            {score}
+          </div>
+          <div style={{ flex: 1 }}>
+            <h1 className="safety-report-title">{data.risk_category}</h1>
+            <p className="safety-report-url">{data.url}</p>
+          </div>
         </div>
 
-        <div className="safety-card safety-red-flags">
-          <h3><span className="material-symbols-outlined">report</span> Technical Findings</h3>
+        <div className="safety-advice-box">
+          <div className="safety-advice-title">
+            <span className="material-symbols-outlined">psychology</span>
+            AI Final Verdict
+          </div>
+          <p className="safety-advice-text">{data.ai_advice}</p>
+        </div>
+
+        <h3 className="drawer-section-title">Technical Findings</h3>
+        <div className="safety-issues-list">
           {data.all_issues.length > 0 ? (
-            <ul className="safety-bullets">
-              {data.all_issues.map((issue, i) => <li key={i}>{issue}</li>)}
-            </ul>
+            data.all_issues.map((issue, i) => (
+              <div key={i} className="safety-issue-item">
+                <span className="material-symbols-outlined safety-issue-icon">
+                  {isDanger ? 'gpp_bad' : 'warning'}
+                </span>
+                <span>{issue}</span>
+              </div>
+            ))
           ) : (
-            <p className="no-issues">No technical red flags found.</p>
+            <p className="safety-advice-text" style={{ opacity: 0.6 }}>No technical red flags found.</p>
           )}
         </div>
 
-        <div className="safety-card safety-recommendations">
-          <h3><span className="material-symbols-outlined">lightbulb</span> Recommendations</h3>
-          <ul className="safety-bullets">
-            {data.recommendations.map((rec, i) => <li key={i}>{rec}</li>)}
-          </ul>
+        <h3 className="drawer-section-title">Recommendations</h3>
+        <div className="safety-issues-list">
+          {data.recommendations.map((rec, i) => (
+            <div key={i} className="safety-issue-item" style={{ background: 'rgba(255,255,255,0.03)' }}>
+              <span className="material-symbols-outlined" style={{ color: '#10b981' }}>check_circle</span>
+              <span>{rec}</span>
+            </div>
+          ))}
+        </div>
+
+        <div className="premium-modal__actions" style={{ marginTop: '32px' }}>
+          <button onClick={() => window.location.reload()} className="premium-modal__btn premium-modal__btn--confirm">
+            Start New Scan
+          </button>
         </div>
       </div>
-      
-      <div className="safety-dashboard-footer">
-        <button onClick={() => window.location.reload()} className="safety-back-btn">Start New Scan</button>
-      </div>
-    </main>
+    </div>
   );
 }
+
 
 function SplashScreen({ isVisible }) {
   const [shouldRender, setShouldRender] = useState(true);
@@ -464,10 +489,12 @@ export default function App() {
     setIsUrlModalOpen(false);
     
     try {
-      const API_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
       const response = await fetch(`${API_URL}/scrape`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${isAuthenticated ? await getAccessToken() : localStorage.getItem("auth_token")}`
+        },
         body: JSON.stringify({ url: urlInput.trim() }),
       });
       
@@ -478,6 +505,7 @@ export default function App() {
       } else {
         alert(data.detail || "Failed to read that link. Try another one!");
       }
+
     } catch (err) {
       console.error("Scrape Error:", err);
       alert("Error connecting to reader. Please try again.");
@@ -777,20 +805,23 @@ export default function App() {
           {isUrlModalOpen && (
             <div className="url-modal-overlay" onClick={() => setIsUrlModalOpen(false)}>
               <div className="url-modal" onClick={(e) => e.stopPropagation()}>
-                <h3 className="url-modal__title">Analyze Web Link</h3>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <span className="material-symbols-outlined" style={{ color: 'var(--color-brand-blue)', fontSize: '28px' }}>link</span>
+                  <h3 className="url-modal__title">Analyze Web Link</h3>
+                </div>
+                <p className="url-modal__text">Paste a URL below to summarize its content or check for security risks.</p>
                 <form onSubmit={handleUrlSubmit}>
-                  <input
-                    autoFocus
-                    type="url"
+                  <input 
                     className="url-modal__input"
-                    placeholder="Paste https://..."
+                    type="url" 
+                    placeholder="https://example.com"
                     value={urlInput}
                     onChange={(e) => setUrlInput(e.target.value)}
-                    required
+                    autoFocus
                   />
                   <div className="url-modal__actions">
-                    <button type="button" className="url-modal__btn-cancel" onClick={() => setIsUrlModalOpen(false)}>Cancel</button>
-                    <button type="submit" className="url-modal__btn-submit">Analyze</button>
+                    <button type="button" className="url-modal__btn url-modal__btn--cancel" onClick={() => setIsUrlModalOpen(false)}>Cancel</button>
+                    <button type="submit" className="url-modal__btn url-modal__btn--submit">Analyze Content</button>
                   </div>
                 </form>
               </div>
@@ -800,78 +831,61 @@ export default function App() {
           {isSafetyModalOpen && (
             <div className="url-modal-overlay" onClick={() => setIsSafetyModalOpen(false)}>
               <div className="url-modal" onClick={(e) => e.stopPropagation()}>
-                <h3 className="url-modal__title">Check Website Safety</h3>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <span className="material-symbols-outlined" style={{ color: '#ef4444', fontSize: '28px' }}>shield_with_heart</span>
+                  <h3 className="url-modal__title">Check Website Safety</h3>
+                </div>
+                <p className="url-modal__text">Enter a URL to perform a deep security scan for deceptive content and technical risks.</p>
                 <form onSubmit={handleSafetySubmit}>
-                  <input
-                    autoFocus
-                    type="url"
+                  <input 
                     className="url-modal__input"
-                    placeholder="Paste URL to scan..."
+                    type="url" 
+                    placeholder="https://example.com"
                     value={urlInput}
                     onChange={(e) => setUrlInput(e.target.value)}
-                    required
+                    autoFocus
                   />
                   <div className="url-modal__actions">
-                    <button type="button" className="url-modal__btn-cancel" onClick={() => setIsSafetyModalOpen(false)}>Cancel</button>
-                    <button type="submit" className="url-modal__btn-submit" style={{ background: '#ef4444' }}>Scan URL</button>
-                  </div>
-                </form>
-              </div>
-            </div>
-          )}
-
-          {safetyResult && (
-            <div className="url-modal-overlay" onClick={() => setSafetyResult(null)}>
-              <div className="safety-report" onClick={(e) => e.stopPropagation()}>
-                <div className="safety-report__header" style={{ 
-                  background: safetyResult.risk_score >= 70 ? 'rgba(239, 68, 68, 0.1)' : 
-                              safetyResult.risk_score >= 45 ? 'rgba(245, 158, 11, 0.1)' : 'rgba(16, 185, 129, 0.1)' 
-                }}>
+                    <button type="button" className="url-modal__btn url-modal__btn--cancel" onClick={() => setIsSafetyModalOpen(false)}>Cancel</button>
+                    <button type="submit" className="url-modal__btn url-modal__btn--submit" style={{ background: '#ef4444' }}>Run Security Scan</button>
+           {safetyResult && (
+            <div className="premium-modal-overlay" onClick={() => setSafetyResult(null)}>
+              <div className="premium-modal" style={{ maxWidth: '500px' }} onClick={(e) => e.stopPropagation()}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                   <span className="material-symbols-outlined" style={{ 
                     color: safetyResult.risk_score >= 70 ? '#ef4444' : 
                            safetyResult.risk_score >= 45 ? '#f59e0b' : '#10b981',
-                    fontSize: 48
+                    fontSize: '32px'
                   }}>
                     {safetyResult.risk_score >= 70 ? 'gpp_bad' : 
                      safetyResult.risk_score >= 45 ? 'warning' : 'verified_user'}
                   </span>
-                  <div>
-                    <h2 className="safety-report__title">{safetyResult.risk_category}</h2>
-                    <p className="safety-report__score">Risk Score: {safetyResult.risk_score}/100</p>
+                  <h3 className="premium-modal__title">{safetyResult.risk_category}</h3>
+                </div>
+                
+                <p className="premium-modal__text" style={{ opacity: 0.7, fontSize: '13px' }}>Risk Score: {safetyResult.risk_score}/100</p>
+                
+                <div className="safety-advice-box">
+                  <div className="safety-advice-title">
+                    <span className="material-symbols-outlined">psychology</span>
+                    AI Recommendation
                   </div>
+                  <p className="safety-advice-text">{safetyResult.ai_advice}</p>
                 </div>
 
-                <div className="safety-report__body">
-                  <div className="safety-section">
-                    <h4>AI Expert Advice</h4>
-                    <p className="ai-advice">{safetyResult.ai_advice}</p>
-                  </div>
-
-                  {safetyResult.all_issues.length > 0 && (
-                    <div className="safety-section">
-                      <h4>Technical Red Flags</h4>
-                      <ul className="safety-list">
-                        {safetyResult.all_issues.slice(0, 3).map((issue, i) => (
-                          <li key={i}>{issue}</li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-
-                  <div className="safety-section">
-                    <h4>Action Steps</h4>
-                    <ul className="safety-list">
-                      {safetyResult.recommendations.slice(0, 2).map((rec, i) => (
-                        <li key={i}>{rec}</li>
-                      ))}
-                    </ul>
-                  </div>
+                <div className="premium-modal__actions">
+                  <button className="premium-modal__btn premium-modal__btn--cancel" onClick={() => setSafetyResult(null)}>Dismiss</button>
+                  <button className="premium-modal__btn premium-modal__btn--confirm" onClick={() => {
+                    setSafetyResult(null);
+                    setSafetyTargetUrl(safetyResult.url);
+                    navigate(VIEW.SAFETY_ANALYSIS);
+                  }}>Full Report</button>
                 </div>
-
-                <button className="safety-report__close" onClick={() => setSafetyResult(null)}>Close Report</button>
               </div>
             </div>
           )}
+          )}
+
 
           <input
             type="file"
@@ -890,12 +904,8 @@ export default function App() {
               <span className="material-symbols-outlined history-header__icon">history</span>
               <h2 className="history-header__title">Recent</h2>
             </div>
-            <button className="history-header__clear" onClick={() => {
-              if (window.confirm("Are you sure you want to clear all recent chats?")) {
-                setHistory([]);
-                localStorage.removeItem("chat_history");
-              }
-            }}>Clear All</button>
+            <button className="history-header__clear" onClick={() => setShowClearHistoryConfirm(true)}>Clear All</button>
+
           </div>
 
           {history.length === 0 ? (
@@ -940,8 +950,11 @@ export default function App() {
           url={safetyTargetUrl} 
           results={safetyResult} 
           onComplete={setSafetyResult} 
+          apiUrl={API_URL}
         />
+
       )}
+
 
       {view === VIEW.SETTINGS && <SettingsPage onNavigate={navigate} onLogout={() => setShowLogoutConfirm(true)} onClearHistory={() => setShowClearHistoryConfirm(true)} language={language} setLanguage={setLanguage} />}
       {view === VIEW.PROFILE  && <ProfilePage onNavigate={navigate} />}
@@ -971,26 +984,33 @@ export default function App() {
         id="file-upload-input"
       />
       {showLogoutConfirm && (
-        <div className="premium-modal-overlay">
-          <div className="premium-modal">
-            <h3 className="premium-modal-title">Logout?</h3>
-            <p className="premium-modal-desc">Are you sure you want to sign out of your account?</p>
-            <div className="premium-modal-actions">
-              <button className="premium-modal-btn premium-modal-btn--cancel" onClick={() => setShowLogoutConfirm(false)}>Cancel</button>
-              <button className="premium-modal-btn premium-modal-btn--danger" onClick={() => { setShowLogoutConfirm(false); logout(); }}>Logout</button>
+        <div className="premium-modal-overlay" onClick={() => setShowLogoutConfirm(false)}>
+          <div className="premium-modal" onClick={(e) => e.stopPropagation()}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <span className="material-symbols-outlined" style={{ color: 'var(--color-on-surface-variant)', fontSize: '28px' }}>logout</span>
+              <h3 className="premium-modal__title">Sign Out?</h3>
+            </div>
+            <p className="premium-modal__text">Are you sure you want to logout of Mydeen AI? You will need to sign in again to access your chat history.</p>
+            <div className="premium-modal__actions">
+              <button className="premium-modal__btn premium-modal__btn--cancel" onClick={() => setShowLogoutConfirm(false)}>Cancel</button>
+              <button className="premium-modal__btn premium-modal__btn--danger" onClick={() => { setShowLogoutConfirm(false); logout(); }}>Sign Out</button>
             </div>
           </div>
         </div>
       )}
 
+
       {showClearHistoryConfirm && (
-        <div className="premium-modal-overlay">
-          <div className="premium-modal">
-            <h3 className="premium-modal-title">Clear Recents?</h3>
-            <p className="premium-modal-desc">This will permanently delete ALL your past conversations. This action cannot be undone.</p>
-            <div className="premium-modal-actions">
-              <button className="premium-modal-btn premium-modal-btn--cancel" onClick={() => setShowClearHistoryConfirm(false)}>Cancel</button>
-              <button className="premium-modal-btn premium-modal-btn--danger" onClick={() => { 
+        <div className="premium-modal-overlay" onClick={() => setShowClearHistoryConfirm(false)}>
+          <div className="premium-modal" onClick={(e) => e.stopPropagation()}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <span className="material-symbols-outlined" style={{ color: '#ef4444', fontSize: '28px' }}>auto_delete</span>
+              <h3 className="premium-modal__title">Clear History?</h3>
+            </div>
+            <p className="premium-modal__text">This will permanently delete all your chat history. This action cannot be undone.</p>
+            <div className="premium-modal__actions">
+              <button className="premium-modal__btn premium-modal__btn--cancel" onClick={() => setShowClearHistoryConfirm(false)}>Cancel</button>
+              <button className="premium-modal__btn premium-modal__btn--danger" onClick={() => { 
                 localStorage.removeItem("chat_history");
                 setHistory([]);
                 setShowClearHistoryConfirm(false);
@@ -999,6 +1019,7 @@ export default function App() {
           </div>
         </div>
       )}
+
 
       {/* Hidden PDF Input */}
       <input 
