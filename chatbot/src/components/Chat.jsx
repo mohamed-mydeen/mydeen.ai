@@ -4,7 +4,6 @@ import { streamMessage, streamSearchMessage } from "../api/chatApi";
 import { useAuth } from "../context/AuthContext";
 import Suggestions from "./Suggestions";
 import FollowUps from "./FollowUps";
-
 import SmartSearchBar from "./SmartSearchBar";
 
 /* ─── Small sub-components ─────────────────────────────────────────── */
@@ -161,12 +160,133 @@ function ImageGallery({ images }) {
   );
 }
 
-function ChatMessage({ role, text, sources, images, suggestions, onEdit, onRegenerate, isLast, isStreaming, onOpenSources, onSelectSuggestion }) {
+/* ── Safety Check Card for Chat UI ── */
+function SafetyCheckCard({ data, loading, url }) {
+  if (loading) {
+    return (
+      <div className="chat-safety-loading-minimal">
+        <div className="chat-safety-spinner-small">
+          <span className="material-symbols-outlined spinning">security</span>
+        </div>
+        <div className="chat-safety-loading-text">
+          <p>Scanning <strong>{url}</strong> for risks...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!data) return null;
+
+  const score = data.risk_score;
+  const isDanger = score >= 70;
+  const isWarning = score >= 45;
+  const color = isDanger ? '#ef4444' : isWarning ? '#f59e0b' : '#10b981';
+
+  const details = data.module_details || {};
+  const domainInfo = details.domain_analysis || {};
+  const sslInfo = details.ssl_analysis || {};
+
+  return (
+    <div className="chat-safety-report-inline">
+      <div className="chat-safety-header-inline">
+        <div className="chat-safety-badge-mini" style={{ backgroundColor: `${color}15`, color: color }}>
+          <span className="material-symbols-outlined">
+            {isDanger ? 'gpp_bad' : isWarning ? 'warning' : 'verified_user'}
+          </span>
+          {data.risk_category}
+        </div>
+        <div className="chat-safety-score-pill">
+          Risk Score: <strong>{score}</strong>
+        </div>
+      </div>
+      
+      <div className="markdown-content">
+        <ReactMarkdown>{data.ai_advice}</ReactMarkdown>
+      </div>
+
+      {/* Technical Metadata Grid */}
+      <div className="chat-safety-details-grid">
+        {domainInfo.domain_age_days !== undefined && (
+          <div className="safety-detail-item">
+            <span className="material-symbols-outlined">calendar_today</span>
+            <div>
+              <span className="label">Domain Age</span>
+              <span className="value">{domainInfo.domain_age_days} days</span>
+            </div>
+          </div>
+        )}
+        {domainInfo.registrar && (
+          <div className="safety-detail-item">
+            <span className="material-symbols-outlined">business</span>
+            <div>
+              <span className="label">Registrar</span>
+              <span className="value">{domainInfo.registrar.split(' ')[0]}</span>
+            </div>
+          </div>
+        )}
+        {sslInfo.issuer && (
+          <div className="safety-detail-item">
+            <span className="material-symbols-outlined">lock</span>
+            <div>
+              <span className="label">SSL Issuer</span>
+              <span className="value">{sslInfo.issuer.split(',')[0].replace('O=', '').trim()}</span>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {data.all_issues.length > 0 && (
+        <div className="chat-safety-findings-inline">
+          <h5>Security Findings:</h5>
+          <ul>
+            {data.all_issues.slice(0, 3).map((issue, i) => (
+              <li key={i}>{issue}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+}
+
+
+
+function ChatMessage({ role, text, sources, images, suggestions, onEdit, onRegenerate, isLast, isStreaming, onOpenSources, onSelectSuggestion, type, loading, safety_data, url }) {
   const [shared, setShared] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [copied, setCopied] = useState(false);
   const [feedback, setFeedback] = useState(null);
+  const [showMobileMenu, setShowMobileMenu] = useState(false);
+  const pressTimer = useRef(null);
   const isUser = role === 'user';
+
+  // Handle Long Press for Mobile Actions
+  const handleTouchStart = (e) => {
+    if (!isUser) return;
+    // Reset previous just in case
+    if (pressTimer.current) clearTimeout(pressTimer.current);
+    
+    pressTimer.current = setTimeout(() => {
+      setShowMobileMenu(true);
+      // Provide subtle haptic feedback if available on Android/PWA
+      if ('vibrate' in navigator) {
+        navigator.vibrate(30); 
+      }
+    }, 550); // 550ms long press threshold
+  };
+
+  const handleTouchEnd = () => {
+    if (pressTimer.current) {
+      clearTimeout(pressTimer.current);
+    }
+  };
+
+  const handleTouchMove = () => {
+    // If user starts scrolling, cancel the long-press detection instantly
+    if (pressTimer.current) {
+      clearTimeout(pressTimer.current);
+    }
+  };
 
   const handleSpeak = () => {
     if (isSpeaking) {
@@ -201,17 +321,25 @@ function ChatMessage({ role, text, sources, images, suggestions, onEdit, onRegen
   };
 
   return (
-    <div className={`chat-msg ${isUser ? "chat-msg--user" : "chat-msg--ai"}`}>
+    <div className={`chat-msg ${isUser ? "chat-msg--user" : "chat-msg--ai"} ${type === 'safety_check' ? 'chat-msg--safety' : ''}`}>
       {!isUser && (
         <div className="chat-msg__avatar" aria-hidden="true">
           <MydeenLogo size={32} />
         </div>
       )}
       {isUser ? (
-        <div className="chat-msg__user-container">
+        <div 
+          className={`chat-msg__user-container ${showMobileMenu ? 'chat-msg__user-container--active' : ''}`}
+          onTouchStart={handleTouchStart}
+          onTouchEnd={handleTouchEnd}
+          onTouchMove={handleTouchMove}
+          onContextMenu={(e) => { if (showMobileMenu) e.preventDefault(); }} /* Prevent context menu collision */
+        >
           <div className="chat-msg__bubble chat-msg__bubble--user">
             <div className="chat-msg__text">{text}</div>
           </div>
+          
+          {/* Desktop Hover Actions / Secondary Context */}
           <div className="chat-msg__actions chat-msg__actions--user">
             <button
               type="button"
@@ -234,20 +362,58 @@ function ChatMessage({ role, text, sources, images, suggestions, onEdit, onRegen
               <span className="material-symbols-outlined">edit</span>
             </button>
           </div>
+
+          {/* Mobile Floating Actions Popup */}
+          {showMobileMenu && (
+            <>
+              <div 
+                className="mobile-actions-backdrop" 
+                onClick={(e) => { e.stopPropagation(); setShowMobileMenu(false); }} 
+              />
+              <div 
+                className="mobile-actions-popup"
+                onClick={(e) => e.stopPropagation()}
+                onTouchStart={(e) => e.stopPropagation()}
+                onTouchEnd={(e) => e.stopPropagation()}
+              >
+                <button 
+                  className="mobile-actions-item" 
+                  onClick={(e) => { e.stopPropagation(); handleCopy(); setShowMobileMenu(false); }}
+                >
+                  <span className="material-symbols-outlined">{copied ? "check" : "content_copy"}</span>
+                  <span>{copied ? "Copied!" : "Copy text"}</span>
+                </button>
+                <div className="mobile-actions-divider" />
+                <button 
+                  className="mobile-actions-item" 
+                  onClick={(e) => { e.stopPropagation(); onEdit(text); setShowMobileMenu(false); }}
+                >
+                  <span className="material-symbols-outlined">edit</span>
+                  <span>Edit prompt</span>
+                </button>
+              </div>
+            </>
+          )}
         </div>
       ) : (
         <div className="chat-msg__bubble-wrapper--ai">
           <div className="chat-msg__bubble chat-msg__bubble--ai">
             <div className="markdown-content">
-              <ReactMarkdown>{text}</ReactMarkdown>
-              {isStreaming && <span className="streaming-cursor" />}
-              
-              {/* Inline Citation Pill inside bubble (ChatGPT style) */}
-              {!isStreaming && sources && sources.length > 0 && (
-                <div className="inline-citation-pill" title="View Sources">
-                  {getSiteName(sources[0].url, sources[0].title, sources[0].source)}
-                  {sources.length > 1 && <span className="inline-citation-pill__more">+{sources.length - 1}</span>}
-                </div>
+              {type === 'safety_check' ? (
+                <SafetyCheckCard data={safety_data} loading={loading} url={url} />
+              ) : (
+                <>
+                  <ReactMarkdown>{text}</ReactMarkdown>
+                  {isStreaming && <span className="streaming-cursor" />}
+                  
+                  {/* Inline Citation Pill inside bubble (ChatGPT style) */}
+                  {!isStreaming && sources && sources.length > 0 && (
+                    <div className="inline-citation-pill" title="View Sources">
+                      {getSiteName(sources[0].url, sources[0].title, sources[0].source)}
+                      {sources.length > 1 && <span className="inline-citation-pill__more">+{sources.length - 1}</span>}
+                    </div>
+                  )}
+                </>
               )}
             </div>
             {!isStreaming && images && images.length > 0 && (
@@ -255,83 +421,79 @@ function ChatMessage({ role, text, sources, images, suggestions, onEdit, onRegen
             )}
           </div>
           
-          {!isStreaming && suggestions && suggestions.length > 0 && (
+          {!isStreaming && suggestions && suggestions.length > 0 && type !== 'safety_check' && (
             <FollowUps 
               suggestions={suggestions} 
               onSelect={(text) => onSelectSuggestion(text)} 
             />
           )}
 
-          <div className="chat-msg__actions chat-msg__actions--ai">
-            <button
-              type="button"
-              className={`chat-msg__action-btn ${copied ? "chat-msg__action-btn--copied" : ""}`}
-              onClick={handleCopy}
-              title="Copy response"
-            >
-              <span className="material-symbols-outlined">{copied ? "check" : "content_copy"}</span>
-            </button>
-            <button 
-              type="button" 
-              className={`chat-msg__action-btn ${feedback === 'like' ? "chat-msg__action-btn--active" : ""}`} 
-              onClick={() => setFeedback(feedback === 'like' ? null : 'like')}
-              title="Good response"
-              style={{ color: feedback === 'like' ? '#10b981' : 'var(--color-on-surface-variant)' }}
-            >
-              <span className="material-symbols-outlined" style={{ fontVariationSettings: feedback === 'like' ? "'FILL' 1" : "none" }}>thumb_up</span>
-            </button>
-            <button 
-              type="button" 
-              className={`chat-msg__action-btn ${feedback === 'dislike' ? "chat-msg__action-btn--active" : ""}`} 
-              onClick={() => setFeedback(feedback === 'dislike' ? null : 'dislike')}
-              title="Bad response"
-              style={{ color: feedback === 'dislike' ? '#ef4444' : 'var(--color-on-surface-variant)' }}
-            >
-              <span className="material-symbols-outlined" style={{ fontVariationSettings: feedback === 'dislike' ? "'FILL' 1" : "none" }}>thumb_down</span>
-            </button>
-            <button
-              type="button"
-              className={`chat-msg__action-btn ${shared ? "chat-msg__action-btn--copied" : ""}`}
-              onClick={handleShare}
-              title="Share response"
-            >
-              <span className="material-symbols-outlined">{shared ? "check" : "share"}</span>
-            </button>
-            
-            {!isUser && (
+          {!isStreaming && type !== 'safety_check' && (
+            <div className="chat-msg__actions chat-msg__actions--ai">
+              <button
+                type="button"
+                className={`chat-msg__action-btn ${copied ? "chat-msg__action-btn--copied" : ""}`}
+                onClick={handleCopy}
+                title="Copy response"
+              >
+                <span className="material-symbols-outlined">{copied ? "check" : "content_copy"}</span>
+              </button>
               <button 
                 type="button" 
-                className={`chat-msg__action-btn ${isSpeaking ? 'chat-msg__action-btn--active' : ''}`} 
-                onClick={handleSpeak} 
-                title="Listen"
+                className={`chat-msg__action-btn ${feedback === 'like' ? "chat-msg__action-btn--active" : ""}`} 
+                onClick={() => setFeedback(feedback === 'like' ? null : 'like')}
+                title="Good response"
+                style={{ color: feedback === 'like' ? '#10b981' : 'var(--color-on-surface-variant)' }}
               >
-                <span className="material-symbols-outlined">{isSpeaking ? 'stop_circle' : 'volume_up'}</span>
+                <span className="material-symbols-outlined" style={{ fontVariationSettings: feedback === 'like' ? "'FILL' 1" : "none" }}>thumb_up</span>
               </button>
-            )}
+              <button 
+                type="button" 
+                className={`chat-msg__action-btn ${feedback === 'dislike' ? "chat-msg__action-btn--active" : ""}`} 
+                onClick={() => setFeedback(feedback === 'dislike' ? null : 'dislike')}
+                title="Bad response"
+                style={{ color: feedback === 'dislike' ? '#ef4444' : 'var(--color-on-surface-variant)' }}
+              >
+                <span className="material-symbols-outlined" style={{ fontVariationSettings: feedback === 'dislike' ? "'FILL' 1" : "none" }}>thumb_down</span>
+              </button>
+              <button
+                type="button"
+                className={`chat-msg__action-btn ${shared ? "chat-msg__action-btn--copied" : ""}`}
+                onClick={handleShare}
+                title="Share response"
+              >
+                <span className="material-symbols-outlined">{shared ? "check" : "share"}</span>
+              </button>
+              
+              {!isUser && (
+                <button 
+                  type="button" 
+                  className={`chat-msg__action-btn ${isSpeaking ? 'chat-msg__action-btn--active' : ''}`} 
+                  onClick={handleSpeak} 
+                  title="Listen"
+                >
+                  <span className="material-symbols-outlined">{isSpeaking ? 'stop_circle' : 'volume_up'}</span>
+                </button>
+              )}
 
-            {!isUser && isLast && (
-              <button type="button" className="chat-msg__action-btn" onClick={onRegenerate} title="Regenerate">
-                <span className="material-symbols-outlined">cached</span>
-              </button>
-            )}
-            
-            {/* ChatGPT-style Action Bar Sources Button */}
-            {!isStreaming && sources && sources.length > 0 && (
-              <>
-                <div className="chat-msg__actions-spacer" style={{ flex: 1 }}></div>
-                <SourcesBar sources={sources} onOpenSources={onOpenSources} />
-              </>
-            )}
-          </div>
+
+              
+              {!isStreaming && sources && sources.length > 0 && (
+                <>
+                  <div className="chat-msg__actions-spacer" style={{ flex: 1 }}></div>
+                  <SourcesBar sources={sources} onOpenSources={onOpenSources} />
+                </>
+              )}
+            </div>
+          )}
         </div>
       )}
     </div>
   );
 }
 
-/* ─── Main Chat Component ───────────────────────────────────────────── */
+/* ── Main Chat Component ───────────────────────────────────────────── */
 
-/* Retry delay schedule mirrors backend RETRY_DELAYS = [10, 20, 30, 45] */
 const RETRY_DELAYS = [10, 20, 30, 45];
 
 export default function Chat({ 
@@ -352,14 +514,12 @@ export default function Chat({
   const [retryState, setRetryState] = useState(null);
   const [isListening, setIsListening] = useState(false);
   const [showScrollBtn, setShowScrollBtn] = useState(false);
-  // ── Web Search State ────────────────────────────────────────────────────
-  const [webSearchEnabled, setWebSearchEnabled] = useState(true); // ON by default
+  const [webSearchEnabled, setWebSearchEnabled] = useState(true);
   const [searchSources, setSearchSources] = useState([]);
   const [searchImages, setSearchImages] = useState([]);
   const [searchSuggestions, setSearchSuggestions] = useState([]);
   const [searchStatus, setSearchStatus]         = useState(null);
   
-  // ── Drawer State ──
   const [drawerSources, setDrawerSources] = useState(null);
   const [isDrawerClosing, setIsDrawerClosing] = useState(false);
 
@@ -374,17 +534,14 @@ export default function Chat({
   const bottomRef      = useRef(null);
   const topRef         = useRef(null);
   const chatMessagesRef = useRef(null);
-  const isHistoryLoad  = useRef(false);
   const inputRef       = useRef(null);
   const initialSent    = useRef(false);
   const countdownTimer = useRef(null);
 
-  /* Auto-scroll during streaming or loading */
   useEffect(() => {
     if (loading || streamingMessage) {
       const scrollContainer = chatMessagesRef.current;
       if (scrollContainer) {
-        // Use a slight delay to ensure the DOM has rendered the new content
         const timeoutId = setTimeout(() => {
           scrollContainer.scrollTo({
             top: scrollContainer.scrollHeight,
@@ -396,30 +553,24 @@ export default function Chat({
     }
   }, [loading, streamingMessage]);
 
-  /* ── Mobile Keyboard Handling (Visual Viewport) ── */
   useEffect(() => {
     if (!window.visualViewport) return;
-
     const handleViewportChange = () => {
       const scrollContainer = chatMessagesRef.current;
       if (scrollContainer) {
-        // Adjust padding to account for keyboard
         const viewportHeight = window.visualViewport.height;
         const windowHeight = window.innerHeight;
         const keyboardHeight = windowHeight - viewportHeight;
-        
         if (keyboardHeight > 100) {
           scrollContainer.style.paddingBottom = `${keyboardHeight + 80}px`;
-          // Force scroll to bottom when keyboard opens
           setTimeout(() => {
             scrollContainer.scrollTo({ top: scrollContainer.scrollHeight, behavior: "smooth" });
           }, 100);
         } else {
-          scrollContainer.style.paddingBottom = "160px"; // Default padding
+          scrollContainer.style.paddingBottom = "160px";
         }
       }
     };
-
     window.visualViewport.addEventListener("resize", handleViewportChange);
     window.visualViewport.addEventListener("scroll", handleViewportChange);
     return () => {
@@ -435,28 +586,8 @@ export default function Chat({
     setShowScrollBtn(isScrolledUp);
   };
 
-  /* Focus input */
   useEffect(() => { inputRef.current?.focus(); }, []);
-
-  /* Cleanup countdown */
   useEffect(() => () => clearInterval(countdownTimer.current), []);
-
-  /** Start a visible countdown for `seconds`, then resolve when done. */
-  const waitWithCountdown = (attempt, totalRetries, seconds) =>
-    new Promise((resolve) => {
-      setRetryState({ attempt, total: totalRetries, secondsLeft: seconds });
-      let remaining = seconds;
-      countdownTimer.current = setInterval(() => {
-        remaining -= 1;
-        if (remaining <= 0) {
-          clearInterval(countdownTimer.current);
-          setRetryState(null);
-          resolve();
-        } else {
-          setRetryState({ attempt, total: totalRetries, secondsLeft: remaining });
-        }
-      }, 1000);
-    });
 
   const handleEdit = useCallback((textToEdit) => {
     setInput(textToEdit);
@@ -467,8 +598,55 @@ export default function Chat({
     const trimmed = (text ?? input).trim();
     if (!trimmed || loading) return;
 
-    const sidToUse = currentSid !== undefined ? currentSid : sessionId;
+    // ── Handle Safety Check Command ──
+    if (trimmed.startsWith("SAFETY_CHECK:")) {
+      const url = trimmed.replace("SAFETY_CHECK:", "");
+      const userMsg = { role: "user", text: `Scan Website: ${url}` };
+      const safetyMsg = { role: "assistant", type: "safety_check", loading: true, url };
+      
+      setMessages(prev => [...prev, userMsg, safetyMsg]);
+      setInput("");
+      setLoading(true);
 
+      try {
+        const token = await (auth.isAuthenticated ? auth.getAccessToken() : localStorage.getItem("auth_token"));
+        const API_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
+        const response = await fetch(`${API_URL}/detect_deceptive`, {
+          method: "POST",
+          headers: { 
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${token}`
+          },
+          body: JSON.stringify({ url })
+        });
+        const result = await response.json();
+        setMessages(prev => {
+          const updated = [...prev];
+          const last = updated[updated.length - 1];
+          if (last && last.type === 'safety_check') {
+            last.loading = false;
+            last.safety_data = result;
+          }
+          return updated;
+        });
+      } catch (err) {
+        console.error("Safety check error:", err);
+        setMessages(prev => {
+          const updated = [...prev];
+          const last = updated[updated.length - 1];
+          if (last && last.type === 'safety_check') {
+            last.loading = false;
+            last.error = "Failed to analyze URL";
+          }
+          return updated;
+        });
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
+
+    const sidToUse = currentSid !== undefined ? currentSid : sessionId;
     const newMessages = overrideHistory
       ? [...overrideHistory, { role: "user", text: trimmed }]
       : [...messages, { role: "user", text: trimmed }];
@@ -495,20 +673,17 @@ export default function Chat({
         let finalImages = [];
 
         if (webSearchEnabled) {
-          // ── Use live web search endpoint ──────────────────────────
           await streamSearchMessage(
             trimmed,
             historyToUse,
             sidToUse,
-            false, // auto-detect (not forced)
+            false,
             (chunk) => {
               setIsThinking(false);
               setStreamingMessage(prev => prev + chunk);
               fullReply += chunk;
             },
-            (statusUpdate) => {
-              setSearchStatus(statusUpdate);
-            },
+            (statusUpdate) => setSearchStatus(statusUpdate),
             (sources) => {
               finalSources = sources;
               setSearchSources(sources);
@@ -518,15 +693,10 @@ export default function Chat({
               finalImages = images;
               setSearchImages(images);
             },
-            (suggestions) => {
-              setSearchSuggestions(suggestions);
-            },
-            (sid) => {
-              if (!sidToUse) setSessionId(sid);
-            }
+            (suggestions) => setSearchSuggestions(suggestions),
+            (sid) => { if (!sidToUse) setSessionId(sid); }
           );
         } else {
-          // ── Standard streaming endpoint ────────────────────────────
           await streamMessage(trimmed, historyToUse, sidToUse, (chunk) => {
             setIsThinking(false);
             setStreamingMessage(prev => prev + chunk);
@@ -550,7 +720,7 @@ export default function Chat({
         const errorMsg = err.message || "Unknown error";
         setMessages(p => [...p, { 
           role: "assistant", 
-          text: `⚠️ Error: ${errorMsg}\n\n(Please check if your backend is running and API key is valid)` 
+          text: `⚠️ Error: ${errorMsg}` 
         }]);
         setSearchStatus(null);
       } finally {
@@ -558,7 +728,7 @@ export default function Chat({
         setIsThinking(false);
       }
     })();
-  }, [input, messages, loading, sessionId]);
+  }, [input, messages, loading, sessionId, auth, webSearchEnabled, searchSuggestions]);
 
   const handleRegenerate = useCallback(() => {
     if (loading || messages.length === 0) return;
@@ -567,6 +737,46 @@ export default function Chat({
     handleSend(lastUser.text, messages.slice(0, -1));
   }, [messages, loading, handleSend]);
 
+  const handleVisionCapture = useCallback(async (file) => {
+    if (!file || loading) return;
+
+    // 1. Create a preview URL
+    const previewUrl = URL.createObjectURL(file);
+    
+    // 2. Add user message with image
+    setMessages(prev => [...prev, { role: "user", text: "Analyzing Photo...", images: [previewUrl] }]);
+    setLoading(true);
+    setIsThinking(true);
+
+    try {
+      const token = await (auth.isAuthenticated ? auth.getAccessToken() : localStorage.getItem("auth_token"));
+      const API_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
+      
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const response = await fetch(`${API_URL}/vision/analyze`, {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${token}`
+        },
+        body: formData
+      });
+
+      if (!response.ok) throw new Error("Vision analysis failed");
+
+      const data = await response.json();
+      
+      // 3. Add AI response
+      setMessages(prev => [...prev, { role: "ai", text: data.text }]);
+    } catch (err) {
+      console.error("Vision Error:", err);
+      setMessages(prev => [...prev, { role: "ai", text: "Sorry, I couldn't process that image. Please try again." }]);
+    } finally {
+      setLoading(false);
+      setIsThinking(false);
+    }
+  }, [auth, loading]);
 
   useEffect(() => {
     if (initialQuery?.text && !initialQuery.isHistory && !initialSent.current) {
@@ -575,31 +785,20 @@ export default function Chat({
     }
   }, [initialQuery, handleSend]);
 
-  /* Fetch specific session history if requested */
   useEffect(() => {
     const fetchSessionHistory = async () => {
       try {
         const { getAccessToken, isAuthenticated, isLoading: authLoading } = auth;
         if (authLoading) return;
-
         const isHistory = initialQuery?.isHistory || false;
-        const queryText = initialQuery?.text || "";
         const sid = initialQuery?.sessionId;
-
-        if (!isHistory) {
-          return;
-        }
-
-        if (!sid) return;
-
+        if (!isHistory || !sid) return;
         const token = await (isAuthenticated ? getAccessToken() : localStorage.getItem("auth_token"));
         if (!token) return;
-
         const API_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
         const response = await fetch(`${API_URL}/history/${sid}`, {
           headers: { "Authorization": `Bearer ${token}` }
         });
-        
         if (response.ok) {
           const data = await response.json();
           setMessages(data.map(m => ({ role: m.role, text: m.content, sources: m.sources, images: m.images })));
@@ -610,42 +809,24 @@ export default function Chat({
       }
     };
     fetchSessionHistory();
-  }, [auth.isAuthenticated, auth.isLoading, initialQuery?.sessionId, initialQuery?.text, initialQuery?.isHistory]);
+  }, [auth.isAuthenticated, auth.isLoading, initialQuery?.sessionId, initialQuery?.isHistory]);
 
   const startListening = () => {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SpeechRecognition) {
-      alert("Voice recognition is not supported in this browser.");
-      return;
-    }
-
+    if (!SpeechRecognition) return;
     const recognition = new SpeechRecognition();
     recognition.lang = 'en-US';
-    recognition.interimResults = false;
-
-    recognition.onstart = () => {
-      setIsListening(true);
-    };
-
-    recognition.onresult = (event) => {
-      const transcript = event.results[0][0].transcript;
-      setInput(transcript);
+    recognition.onstart = () => setIsListening(true);
+    recognition.onresult = (e) => {
+      setInput(e.results[0][0].transcript);
       setIsListening(false);
     };
-
-    recognition.onerror = (event) => {
-      console.error("Speech recognition error:", event.error);
-      setIsListening(false);
-    };
-
-    recognition.onend = () => {
-      setIsListening(false);
-    };
-
+    recognition.onerror = () => setIsListening(false);
+    recognition.onend = () => setIsListening(false);
     recognition.start();
   };
 
-    const isEmpty = messages.length === 0 && !loading;
+  const isEmpty = messages.length === 0 && !loading;
 
   return (
     <div className={`chat-container ${isEmpty ? "chat-container--empty" : ""}`}>
@@ -665,17 +846,18 @@ export default function Chat({
               onOpenSources={setDrawerSources}
               suggestions={msg.suggestions}
               onSelectSuggestion={(text) => handleSend(text)}
+              type={msg.type}
+              loading={msg.loading}
+              safety_data={msg.safety_data}
+              url={msg.url}
             />
           ))}
 
           {(isThinking || (searchStatus && !streamingMessage)) && (
             <div className="chat-msg chat-msg--ai">
-              <div className="chat-msg__avatar">
-                <MydeenLogo size={32} />
-              </div>
+              <div className="chat-msg__avatar"><MydeenLogo size={32} /></div>
               <div className="chat-msg__bubble-wrapper--ai">
                 <div className="chat-msg__bubble chat-msg__bubble--ai">
-                  {/* Exclusive logic: Show Wave OR Search Status, but not both */}
                   {searchStatus ? (
                     <div className="search-status-banner--inline premium-transition" style={{ marginLeft: '-4px' }}>
                       <span className="material-symbols-outlined search-status-icon pulse-icon">
@@ -687,9 +869,7 @@ export default function Chat({
                     <div className="thinking-text">
                       {isThinking ? "Thinking" : "Generating"}
                       <div className="thinking-wave">
-                        <div className="thinking-dot"></div>
-                        <div className="thinking-dot"></div>
-                        <div className="thinking-dot"></div>
+                        <div className="thinking-dot"></div><div className="thinking-dot"></div><div className="thinking-dot"></div>
                       </div>
                     </div>
                   )}
@@ -723,9 +903,7 @@ export default function Chat({
 
       {isEmpty && (
         <div className="chat-empty">
-          <div className="sarvam-logo-wrapper">
-             <MydeenLogo size={64} />
-          </div>
+          <div className="sarvam-logo-wrapper"><MydeenLogo size={64} /></div>
           <Suggestions userName={auth.user?.name || "Mydeen"} onSelect={(text) => handleSend(text)} />
         </div>
       )}
@@ -740,11 +918,10 @@ export default function Chat({
         showChips={false} 
         showTypewriter={false}
         onVoiceClick={onVoiceClick}
+        onVisionCapture={handleVisionCapture}
       />
 
 
-
-      {/* Sources Drawer */}
       {(drawerSources || isDrawerClosing) && (
         <>
           <div className={`bottom-drawer-overlay ${isDrawerClosing ? 'closing' : ''}`} onClick={closeDrawer} />
@@ -755,27 +932,19 @@ export default function Chat({
                 <span className="material-symbols-outlined" style={{ fontSize: '20px' }}>close</span>
               </button>
             </div>
-
             <div className="drawer-sources-list">
               {drawerSources && drawerSources.length > 0 && (
                 <>
-                  {/* Featured first source */}
                   <a href={drawerSources[0].url} target="_blank" rel="noopener noreferrer" className="drawer-source-item drawer-source-item--featured">
                     <div className="drawer-source-header">
-                      <div className="drawer-source-icon">
-                        <img src={getFavicon(drawerSources[0].url)} alt="" onError={e => { e.target.style.display='none'; }} />
-                      </div>
+                      <div className="drawer-source-icon"><img src={getFavicon(drawerSources[0].url)} alt="" onError={e => { e.target.style.display='none'; }} /></div>
                       <span className="drawer-source-site-name">{getSiteName(drawerSources[0].url, drawerSources[0].title, drawerSources[0].source)}</span>
                     </div>
                     <div className="drawer-source-info">
                       <span className="drawer-source-name">{drawerSources[0].title || drawerSources[0].url}</span>
-                      {drawerSources[0].snippet && (
-                        <p className="drawer-source-snippet">{drawerSources[0].snippet}</p>
-                      )}
+                      {drawerSources[0].snippet && <p className="drawer-source-snippet">{drawerSources[0].snippet}</p>}
                     </div>
                   </a>
-
-                  {/* Other sources */}
                   {drawerSources.length > 1 && (
                     <>
                       <div className="drawer-section-divider"></div>
@@ -783,16 +952,12 @@ export default function Chat({
                       {drawerSources.slice(1).map((s, i) => (
                         <a key={i} href={s.url} target="_blank" rel="noopener noreferrer" className="drawer-source-item">
                           <div className="drawer-source-header">
-                            <div className="drawer-source-icon">
-                              <img src={getFavicon(s.url)} alt="" onError={e => { e.target.style.display='none'; }} />
-                            </div>
+                            <div className="drawer-source-icon"><img src={getFavicon(s.url)} alt="" onError={e => { e.target.style.display='none'; }} /></div>
                             <span className="drawer-source-site-name">{getSiteName(s.url, s.title, s.source)}</span>
                           </div>
                           <div className="drawer-source-info">
                             <span className="drawer-source-name">{s.title || s.url}</span>
-                            {s.snippet && (
-                              <p className="drawer-source-snippet">{s.snippet}</p>
-                            )}
+                            {s.snippet && <p className="drawer-source-snippet">{s.snippet}</p>}
                           </div>
                         </a>
                       ))}
@@ -810,7 +975,6 @@ export default function Chat({
           type="button"
           className="chat-scroll-btn" 
           onClick={() => bottomRef.current?.scrollIntoView({ behavior: "smooth" })} 
-          aria-label="Scroll to bottom"
         >
           <span className="material-symbols-outlined">arrow_downward</span>
         </button>

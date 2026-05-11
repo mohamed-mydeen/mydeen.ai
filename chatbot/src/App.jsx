@@ -109,19 +109,17 @@ function NewHome({ onNavigate, onGoToChat }) {
 
 function SafetyAnalysisPage({ url, onComplete, results, apiUrl }) {
   const { getAccessToken, isAuthenticated } = useAuth();
-
   const [progress, setProgress] = useState(0);
   const [statusText, setStatusText] = useState("Initializing scanner...");
   const [data, setData] = useState(results);
 
   useEffect(() => {
-    if (data) return; // Don't run if we already have results
+    if (data) return;
 
     const runAnalysis = async () => {
-      // Step-by-step progress simulation like in the user's project
       const steps = [
         { p: 20, t: "🔍 Analyzing URL patterns..." },
-        { p: 40, t: "📅 Checking domain age and registration..." },
+        { p: 40, t: "📅 Checking domain age..." },
         { p: 60, t: "🔒 Validating SSL certificate..." },
         { p: 80, t: "📝 Analyzing webpage content..." },
       ];
@@ -132,7 +130,6 @@ function SafetyAnalysisPage({ url, onComplete, results, apiUrl }) {
         await new Promise(r => setTimeout(r, 1000));
       }
 
-      // Heartbeat: Slowly creep progress while waiting for backend
       const heartbeat = setInterval(() => {
         setProgress(prev => (prev < 95 ? prev + 0.5 : prev));
       }, 500);
@@ -147,15 +144,12 @@ function SafetyAnalysisPage({ url, onComplete, results, apiUrl }) {
           },
           body: JSON.stringify({ url }),
         });
-
-
         
         clearInterval(heartbeat);
-        
         const result = await response.json();
         if (response.ok) {
           setProgress(100);
-          setStatusText("✅ Final Verdict Ready");
+          setStatusText("Analysis Complete");
           setTimeout(() => {
             setData(result);
             onComplete(result);
@@ -167,11 +161,6 @@ function SafetyAnalysisPage({ url, onComplete, results, apiUrl }) {
         clearInterval(heartbeat);
         console.error("Safety Analysis Error:", err);
         alert(`Safety Check failed: ${err.message}`);
-        if (err.message.toLowerCase().includes("session expired") || err.message.toLowerCase().includes("unauthorized")) {
-          // Find the logout function from the parent context or reload
-          localStorage.removeItem("auth_token");
-          window.location.reload();
-        }
       }
     };
 
@@ -185,14 +174,14 @@ function SafetyAnalysisPage({ url, onComplete, results, apiUrl }) {
           <div className="scanner-ring"></div>
           <div className="scanner-progress" style={{ transform: `rotate(${(progress * 3.6) - 45}deg)` }}></div>
           <div className="scanner-icon">
-            <span className="material-symbols-outlined spinning">shield</span>
+            <span className="material-symbols-outlined spinning">security</span>
           </div>
         </div>
-        <h2 className="premium-modal__title">Security Analysis In Progress</h2>
-        <p className="premium-modal__text">Scanning: {url}</p>
-        <div className="options-search-box" style={{ marginTop: '24px', width: '100%', maxWidth: '400px' }}>
-          <span className="material-symbols-outlined">network_check</span>
-          <span className="option-search-input">{statusText}</span>
+        <h2 className="safety-loading-title">Security Analysis In Progress</h2>
+        <p className="safety-loading-url">{url}</p>
+        <div className="safety-status-pill">
+          <span className="material-symbols-outlined">sync</span>
+          <span>{statusText}</span>
         </div>
       </div>
     );
@@ -201,64 +190,97 @@ function SafetyAnalysisPage({ url, onComplete, results, apiUrl }) {
   const score = data.risk_score;
   const isDanger = score >= 70;
   const isWarning = score >= 45;
-  const scoreClass = isDanger ? 'score-high' : isWarning ? 'score-medium' : 'score-low';
+  const color = isDanger ? '#ef4444' : isWarning ? '#f59e0b' : '#10b981';
 
   return (
-    <div className="safety-analysis-page" style={{ justifyContent: 'flex-start' }}>
-      <div className="safety-report-card">
-        <div className="safety-report-header">
-          <div className={`safety-score-circle ${scoreClass}`}>
-            {score}
-          </div>
-          <div style={{ flex: 1 }}>
-            <h1 className="safety-report-title">{data.risk_category}</h1>
-            <p className="safety-report-url">{data.url}</p>
+    <div className="safety-analysis-container page-transition">
+      <div className="safety-hero">
+        <div className="safety-score-gauge" style={{ '--score-color': color }}>
+          <svg viewBox="0 0 100 100">
+            <circle className="gauge-bg" cx="50" cy="50" r="45" />
+            <circle 
+              className="gauge-value" 
+              cx="50" cy="50" r="45" 
+              style={{ strokeDasharray: `${(score / 100) * 283} 283` }}
+            />
+          </svg>
+          <div className="score-content">
+            <span className="score-number">{score}</span>
+            <span className="score-label">Risk</span>
           </div>
         </div>
+        <div className="safety-hero-info">
+          <div className="safety-badge" style={{ backgroundColor: `${color}20`, color: color }}>
+            <span className="material-symbols-outlined">
+              {isDanger ? 'gpp_bad' : isWarning ? 'warning' : 'verified_user'}
+            </span>
+            {data.risk_category}
+          </div>
+          <h1 className="safety-hero-url">{new URL(data.url).hostname}</h1>
+        </div>
+      </div>
 
-        <div className="safety-advice-box">
-          <div className="safety-advice-title">
+      <div className="safety-grid">
+        <div className="safety-main-card">
+          <div className="card-header">
             <span className="material-symbols-outlined">psychology</span>
-            AI Final Verdict
+            <h2>AI Final Verdict</h2>
           </div>
-          <p className="safety-advice-text">{data.ai_advice}</p>
+          <p className="verdict-text">{data.ai_advice}</p>
         </div>
 
-        <h3 className="drawer-section-title">Technical Findings</h3>
-        <div className="safety-issues-list">
-          {data.all_issues.length > 0 ? (
-            data.all_issues.map((issue, i) => (
-              <div key={i} className="safety-issue-item">
-                <span className="material-symbols-outlined safety-issue-icon">
-                  {isDanger ? 'gpp_bad' : 'warning'}
-                </span>
-                <span>{issue}</span>
-              </div>
-            ))
-          ) : (
-            <p className="safety-advice-text" style={{ opacity: 0.6 }}>No technical red flags found.</p>
-          )}
-        </div>
-
-        <h3 className="drawer-section-title">Recommendations</h3>
-        <div className="safety-issues-list">
-          {data.recommendations.map((rec, i) => (
-            <div key={i} className="safety-issue-item" style={{ background: 'rgba(255,255,255,0.03)' }}>
-              <span className="material-symbols-outlined" style={{ color: '#10b981' }}>check_circle</span>
-              <span>{rec}</span>
+        <div className="safety-side-grid">
+          <div className="safety-sub-card">
+            <div className="card-header">
+              <span className="material-symbols-outlined">visibility</span>
+              <h2>Technical Findings</h2>
             </div>
-          ))}
-        </div>
+            <div className="findings-list">
+              {data.all_issues.length > 0 ? (
+                data.all_issues.map((issue, i) => (
+                  <div key={i} className="finding-item">
+                    <span className="material-symbols-outlined" style={{ color: isDanger ? '#ef4444' : '#f59e0b' }}>
+                      info
+                    </span>
+                    <span>{issue}</span>
+                  </div>
+                ))
+              ) : (
+                <div className="finding-item finding-item--safe">
+                  <span className="material-symbols-outlined">check_circle</span>
+                  <span>No security threats detected.</span>
+                </div>
+              )}
+            </div>
+          </div>
 
-        <div className="premium-modal__actions" style={{ marginTop: '32px' }}>
-          <button onClick={() => window.location.reload()} className="premium-modal__btn premium-modal__btn--confirm">
-            Start New Scan
-          </button>
+          <div className="safety-sub-card">
+            <div className="card-header">
+              <span className="material-symbols-outlined">lightbulb</span>
+              <h2>Recommendations</h2>
+            </div>
+            <div className="recs-list">
+              {data.recommendations.map((rec, i) => (
+                <div key={i} className="rec-item">
+                  <span className="material-symbols-outlined">arrow_forward</span>
+                  <span>{rec}</span>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
+      </div>
+
+      <div className="safety-actions">
+        <button onClick={() => window.location.reload()} className="safety-btn-primary">
+          <span className="material-symbols-outlined">refresh</span>
+          Start New Scan
+        </button>
       </div>
     </div>
   );
 }
+
 
 
 function SplashScreen({ isVisible }) {
@@ -519,12 +541,14 @@ export default function App() {
     e.preventDefault();
     if (!urlInput.trim()) return;
 
-    setSafetyTargetUrl(urlInput.trim());
-    setSafetyResult(null);
+    const url = urlInput.trim();
     setIsSafetyModalOpen(false);
-    navigate(VIEW.SAFETY_ANALYSIS);
     setUrlInput("");
+    
+    // Trigger safety check directly in chat
+    goToChat(`SAFETY_CHECK:${url}`);
   };
+
 
   const handleFileChange = async (e) => {
     const file = e.target.files[0];
@@ -541,12 +565,10 @@ export default function App() {
     setIsProcessing(true);
     try {
       if (isPDF) {
-        // Handle PDF
+        // Handle PDF logic (Keep existing)
         const arrayBuffer = await file.arrayBuffer();
         const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
         let fullText = "";
-        
-        // Extract text from the first 5 pages to avoid token limits
         const maxPages = Math.min(pdf.numPages, 5);
         for (let i = 1; i <= maxPages; i++) {
           const page = await pdf.getPage(i);
@@ -562,14 +584,22 @@ export default function App() {
           alert("Couldn't extract text from this PDF. It might be scanned or image-based.");
         }
       } else {
-        // Handle Image via OCR
-        const { data: { text } } = await Tesseract.recognize(file, 'eng');
-        if (text.trim()) {
-          const query = `I have some notes from an image. Can you explain this clearly?\n\n${text.trim()}`;
-          goToChat(query);
-        } else {
-          alert("Couldn't find any text in that image. Try a clearer photo!");
-        }
+        // Handle Image via new Backend Vision Engine
+        const token = await (isAuthenticated ? getAccessToken() : localStorage.getItem("auth_token"));
+        const formData = new FormData();
+        formData.append("file", file);
+
+        const response = await fetch(`${API_URL}/vision/analyze`, {
+          method: "POST",
+          headers: { "Authorization": `Bearer ${token}` },
+          body: formData
+        });
+
+        if (!response.ok) throw new Error("Vision analysis failed");
+        const data = await response.json();
+        
+        // Navigate to chat with the result
+        goToChat(data.text);
       }
     } catch (err) {
       console.error("File processing error:", err);
@@ -578,6 +608,7 @@ export default function App() {
       setIsProcessing(false);
       e.target.value = ""; // Reset input
     }
+
   };
 
   const logout = async () => {
@@ -771,20 +802,16 @@ export default function App() {
 
                 <div className="options-grid">
                   <div className="option-item" onClick={triggerOCR}>
-                    <span className="material-symbols-outlined option-icon">center_focus_strong</span>
-                    <span className="option-label">OCR Scan</span>
+                    <span className="material-symbols-outlined option-icon">photo_library</span>
+                    <span className="option-label">Gallery</span>
                   </div>
                   <div className="option-item" onClick={triggerOCR}>
                     <span className="material-symbols-outlined option-icon">photo_camera</span>
-                    <span className="option-label">Camera</span>
+                    <span className="option-label">Photo</span>
                   </div>
                   <div className="option-item" onClick={triggerSafetyModal}>
                     <span className="material-symbols-outlined option-icon">shield</span>
                     <span className="option-label">Safety</span>
-                  </div>
-                  <div className="option-item" onClick={triggerUrlModal}>
-                    <span className="material-symbols-outlined option-icon">link</span>
-                    <span className="option-label">Web link</span>
                   </div>
                   <div className="option-item" onClick={triggerPdfUpload}>
                     <span className="material-symbols-outlined option-icon">picture_as_pdf</span>
@@ -792,11 +819,7 @@ export default function App() {
                   </div>
                 </div>
 
-                <div className="option-search-box">
-                  <span className="material-symbols-outlined" style={{ color: 'var(--color-on-surface-variant)', fontSize: '20px' }}>search</span>
-                  <input type="text" className="option-search-input" placeholder="Search files or web..." />
-                  <span className="material-symbols-outlined" style={{ color: '#10b981', fontSize: '20px' }}>check</span>
-                </div>
+
 
               </div>
             </>
@@ -848,7 +871,14 @@ export default function App() {
                   <div className="url-modal__actions">
                     <button type="button" className="url-modal__btn url-modal__btn--cancel" onClick={() => setIsSafetyModalOpen(false)}>Cancel</button>
                     <button type="submit" className="url-modal__btn url-modal__btn--submit" style={{ background: '#ef4444' }}>Run Security Scan</button>
-           {safetyResult && (
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
+
+
+          {safetyResult && (
             <div className="premium-modal-overlay" onClick={() => setSafetyResult(null)}>
               <div className="premium-modal" style={{ maxWidth: '500px' }} onClick={(e) => e.stopPropagation()}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -884,7 +914,7 @@ export default function App() {
               </div>
             </div>
           )}
-          )}
+
 
 
           <input
@@ -962,17 +992,21 @@ export default function App() {
       {view === VIEW.ABOUT    && <AboutPage />}
 
       {deleteTargetSid && (
-        <div className="premium-modal-overlay">
-          <div className="premium-modal">
-            <h3 className="premium-modal-title">Delete Chat?</h3>
-            <p className="premium-modal-desc">This action cannot be undone. Are you sure you want to permanently delete this conversation?</p>
-            <div className="premium-modal-actions">
-              <button className="premium-modal-btn premium-modal-btn--cancel" onClick={cancelDeleteChat}>Cancel</button>
-              <button className="premium-modal-btn premium-modal-btn--danger" onClick={confirmDeleteChat}>Delete</button>
+        <div className="premium-modal-overlay" onClick={cancelDeleteChat}>
+          <div className="premium-modal" onClick={(e) => e.stopPropagation()}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <span className="material-symbols-outlined" style={{ color: '#ef4444', fontSize: '28px' }}>delete_forever</span>
+              <h3 className="premium-modal__title">Delete Chat?</h3>
+            </div>
+            <p className="premium-modal__text">This action cannot be undone. Are you sure you want to permanently delete this conversation?</p>
+            <div className="premium-modal__actions">
+              <button className="premium-modal__btn premium-modal__btn--cancel" onClick={cancelDeleteChat}>Cancel</button>
+              <button className="premium-modal__btn premium-modal__btn--danger" onClick={confirmDeleteChat}>Delete</button>
             </div>
           </div>
         </div>
       )}
+
 
       {/* Hidden File Input */}
       <input

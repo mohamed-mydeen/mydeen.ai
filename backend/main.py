@@ -37,6 +37,14 @@ load_dotenv()
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# ── Vision Engine ─────────────────────────────────────────────────────
+try:
+    from vision_engine import analyze_vision_query
+    logger.info("Vision Engine imported successfully")
+except ImportError as e:
+    logger.error(f"Vision engine import failed: {e}")
+    analyze_vision_query = None
+
 # ── Live Search Modules ────────────────────────────────────────────────
 try:
     from search_router import route_and_search, needs_web_search, needs_wikipedia, needs_images
@@ -1076,11 +1084,77 @@ async def detect_deceptive(body: DetectRequest, user: str = Depends(verify_token
             "risk_score": results['total_risk_score'],
             "risk_category": results['risk_category'],
             "all_issues": results['all_issues'],
+            "module_details": results.get('module_details', {}),
             "recommendations": results['recommendations'],
             "ai_advice": ai_recommendation
         }
 
+
     except Exception as e:
         logger.error(f"Detection failed for {url}: {e}")
         raise HTTPException(status_code=400, detail=f"Detection failed: {str(e)[:100]}")
+
+try:
+    from vision_engine import analyze_vision_query
+    VISION_AVAILABLE = True
+except ImportError:
+    VISION_AVAILABLE = False
+
+@app.post("/vision/analyze", tags=["vision"])
+async def vision_analyze(file: UploadFile = File(...), user: str = Depends(verify_token)):
+    if not VISION_AVAILABLE:
+        raise HTTPException(500, "Vision processing modules not available.")
+
+    try:
+        if not analyze_vision_query:
+            return {"text": "⚠️ **Vision System Offline**: The server could not initialize the computer vision model engine. Please verify requirements are installed."}
+
+        content = await file.read()
+        # Local processing (OCR + YOLO)
+        analysis = analyze_vision_query(content)
+        
+        # Handle specific engine errors (like Tesseract missing)
+        if analysis.get("error"):
+            if "Tesseract OCR not found" in analysis["error"]:
+                return {"text": "⚠️ **System Setup Required**: Tesseract OCR is not installed on the server. Please install Tesseract-OCR to enable image-to-text features. Object detection (YOLO) might still work if objects were found."}
+            return {"text": f"⚠️ {analysis['error']}"}
+
+        if not analysis["has_content"]:
+            return {"text": "I couldn't identify any clear text or objects in this photo. Could you try taking a clearer, well-lit picture?"}
+
+        # Prepare prompt for Groq based on local analysis
+        if analysis["type"] == "text":
+            prompt = (
+                f"I have extracted this text from a student's photo (it might be notes, a textbook, or a screenshot):\n\n"
+                f"--- EXTRACTED TEXT ---\n{analysis['ocr_text']}\n--------------------\n\n"
+                f"Please explain this content in a simple, student-friendly way. "
+                f"If it's a question, solve it. If it's a note, summarize it. "
+                f"Use bullet points and keep it concise. Support Tanglish if the content suggests it."
+            )
+        else:
+            obj_list = ", ".join(analysis["objects"])
+            prompt = (
+                f"A student shared a photo containing these detected objects: {obj_list}.\n"
+                f"Please provide a brief, interesting educational explanation about these objects or how they relate to each other. "
+                f"Keep it student-friendly and use bullet points."
+            )
+
+        # Get AI explanation from Groq (Llama-3.3-70b is great for reasoning)
+        completion = await client.chat.completions.create(
+            messages=[{"role": "system", "content": "You are a helpful educational assistant."},
+                      {"role": "user", "content": prompt}],
+            model=MODELS[0],
+            temperature=0.7,
+            max_tokens=1000,
+        )
+        
+        return {
+            "text": completion.choices[0].message.content,
+            "type": analysis["type"],
+            "objects": analysis["objects"]
+        }
+
+    except Exception as e:
+        logger.error(f"Vision analysis failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Vision processing failed: {str(e)}")
  

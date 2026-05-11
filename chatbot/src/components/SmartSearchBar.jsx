@@ -164,13 +164,17 @@ export default function SmartSearchBar({
               onClick={onVoiceClick}
               title="Voice Assistant"
               style={{ 
-                backgroundColor: 'rgba(59, 130, 246, 0.12)',
-                border: '1px solid rgba(59, 130, 246, 0.3)',
-                color: '#3b82f6',
-                boxShadow: '0 0 10px rgba(59, 130, 246, 0.2)'
+                backgroundColor: 'rgba(0, 0, 0, 0.3)',
+                border: '1px solid rgba(255, 255, 255, 0.1)',
+                boxShadow: '0 0 12px rgba(134, 59, 255, 0.3)'
               }}
             >
-              <span className="material-symbols-outlined" style={{ fontSize: '20px', fontWeight: 'bold' }}>settings_voice</span>
+              <div className="mini-assistant-icon">
+                <div className="mini-orb-layer layer-one"></div>
+                <div className="mini-orb-layer layer-two"></div>
+                <div className="mini-orb-layer layer-three"></div>
+                <div className="mini-orb-core"></div>
+              </div>
             </button>
           )}
 
@@ -211,3 +215,4 @@ export default function SmartSearchBar({
     </footer>
   );
 }
+
