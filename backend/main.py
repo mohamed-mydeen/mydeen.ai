@@ -872,7 +872,7 @@ async def chat_search_stream(
             do_search = SEARCH_AVAILABLE and (body.force_search or needs_web_search(body.message) or needs_wikipedia(body.message) or needs_images(body.message))
 
             if do_search:
-                await queue.put(json.dumps({"status": "searching", "message": "Searching sources..."}))
+                await queue.put(json.dumps({"status": "searching", "message": "Searching sources"}))
                 try:
                     search_result = await route_and_search(body.message)
                     sources = search_result.get("sources", [])
@@ -907,7 +907,7 @@ async def chat_search_stream(
             base_messages.append({"role": "user", "content": body.message})
 
             # Step 4: Stream AI response
-            await queue.put(json.dumps({"status": "generating", "message": "Generating response..."}))
+            await queue.put(json.dumps({"status": "generating", "message": "Generating response"}))
 
             for attempt in range(MAX_RETRIES):
                 current_model = MODELS[attempt % len(MODELS)]

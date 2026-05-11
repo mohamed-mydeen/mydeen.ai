@@ -687,7 +687,7 @@ export default function Chat({
             (sources) => {
               finalSources = sources;
               setSearchSources(sources);
-              setSearchStatus({ status: "generating", message: "Generating response..." });
+              setSearchStatus({ status: "generating", message: "Generating response" });
             },
             (images) => {
               finalImages = images;
@@ -868,9 +868,6 @@ export default function Chat({
                   ) : (
                     <div className="thinking-text">
                       {isThinking ? "Thinking" : "Generating"}
-                      <div className="thinking-wave">
-                        <div className="thinking-dot"></div><div className="thinking-dot"></div><div className="thinking-dot"></div>
-                      </div>
                     </div>
                   )}
                 </div>
