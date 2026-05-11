@@ -805,6 +805,8 @@ body {
   white-space: pre-wrap;
   word-break: break-word;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  user-select: none; /* Restricts manual highlighting as requested */
+  -webkit-user-select: none; 
 }
 
 .chat-msg__user-container {

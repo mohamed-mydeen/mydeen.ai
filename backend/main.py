@@ -1103,11 +1103,12 @@ except ImportError:
 @app.post("/vision/analyze", tags=["vision"])
 async def vision_analyze(file: UploadFile = File(...), user: str = Depends(verify_token)):
     if not VISION_AVAILABLE:
-        raise HTTPException(500, "Vision processing modules not available.")
+        return {"text": "⚠️ **Vision System Offline**: The backend failed to load required computer vision libraries. Please restart server or check console log."}
 
     try:
+        # If somehow still not available but past check
         if not analyze_vision_query:
-            return {"text": "⚠️ **Vision System Offline**: The server could not initialize the computer vision model engine. Please verify requirements are installed."}
+             return {"text": "⚠️ **Vision Engine Missing**: Model handler function unavailable."}
 
         content = await file.read()
         # Local processing (OCR + YOLO)
@@ -1132,7 +1133,7 @@ async def vision_analyze(file: UploadFile = File(...), user: str = Depends(verif
                 f"Use bullet points and keep it concise. Support Tanglish if the content suggests it."
             )
         else:
-            obj_list = ", ".join(analysis["objects"])
+            obj_list = ", ".join(analysis["objects"]) if analysis.get("objects") else "Unknown objects"
             prompt = (
                 f"A student shared a photo containing these detected objects: {obj_list}.\n"
                 f"Please provide a brief, interesting educational explanation about these objects or how they relate to each other. "
@@ -1156,5 +1157,6 @@ async def vision_analyze(file: UploadFile = File(...), user: str = Depends(verif
 
     except Exception as e:
         logger.error(f"Vision analysis failed: {e}")
-        raise HTTPException(status_code=500, detail=f"Vision processing failed: {str(e)}")
+        # RECOVERABLE: Return the diagnostic directly to chat bubble so user can read the actual traceback!
+        return {"text": f"⚠️ **API Processing Failed**: {str(e)}"}
  
