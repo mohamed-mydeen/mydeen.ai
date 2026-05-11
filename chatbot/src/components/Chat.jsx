@@ -909,6 +909,8 @@ export default function Chat({
       )}
 
       <SmartSearchBar 
+        value={input}
+        inputRef={inputRef}
         onSubmit={(text) => handleSend(text)}
         onPlusClick={onPlusClick}
         isProcessing={loading || isProcessing}

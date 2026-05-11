@@ -28,13 +28,22 @@ export default function SmartSearchBar({
   onToggleWebSearch,
   showChips = true,
   showTypewriter = true,
-  onVoiceClick
+  onVoiceClick,
+  value = "", // Added explicit prop to allow parent-driven input modification (like Edit)
+  inputRef    // Added to allow parent component to trigger focus() commands!
 }) {
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState(value);
   const [isListening, setIsListening] = useState(false);
   const [placeholder, setPlaceholder] = useState("");
   const [suggestionIndex, setSuggestionIndex] = useState(0);
   const [isTyping, setIsTyping] = useState(true);
+
+  // VERY IMPORTANT: Sync parent updates (like handleEdit!) directly into the isolated local state!
+  useEffect(() => {
+    if (value !== undefined) {
+      setQuery(value);
+    }
+  }, [value]);
 
   useEffect(() => {
     if (!showTypewriter) return;
@@ -144,6 +153,7 @@ export default function SmartSearchBar({
             <input
               className="smart-input"
               type="text"
+              ref={inputRef} /* Passed ref successfully enabling Chat.jsx focus logic! */
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               onKeyDown={handleKeyDown}
