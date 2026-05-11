@@ -13,3 +13,6 @@ python-whois
 PyPDF2
 ddgs
 wikipedia
+ultralytics
+opencv-python-headless
+pytesseract
