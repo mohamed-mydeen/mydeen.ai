@@ -1110,22 +1110,84 @@ async def vision_analyze(
         return {"text": "⚠️ **Vision System Offline**: The backend failed to load required computer vision libraries. Please restart server or check console log."}
 
     try:
-        # If somehow still not available but past check
+        import base64
+        
+        content = await file.read()
+        user_query = prompt or "Please analyze this image and describe what you see in detail."
+        
+        # --- 🌐 FALLBACK / DIRECT ROUTE: Groq Cloud Vision ---
+        # Triggers if local engines are explicitly disabled, OR missing, OR fail later.
+        use_cloud_vision = (os.getenv("DISABLE_VISION_LOCAL", "false").lower() == "true") or not analyze_vision_query
+        
+        if use_cloud_vision:
+            logger.info("📡 Forwarding image direct to Groq Cloud Vision (Zero local compute mode)")
+            try:
+                base64_image = base64.b64encode(content).decode('utf-8')
+                # Use the specific multimodal vision endpoint
+                vision_completion = await client.chat.completions.create(
+                    messages=[
+                        {
+                            "role": "user",
+                            "content": [
+                                {"type": "text", "text": user_query},
+                                {
+                                    "type": "image_url",
+                                    "image_url": {
+                                        "url": f"data:image/jpeg;base64,{base64_image}",
+                                    },
+                                },
+                            ],
+                        }
+                    ],
+                    model="llama-3.2-11b-vision-preview",
+                    temperature=0.5,
+                    max_tokens=1024,
+                )
+                reply = vision_completion.choices[0].message.content
+                return {
+                    "text": reply,
+                    "type": "cloud_vision",
+                    "objects": []
+                }
+            except Exception as cloud_err:
+                logger.error(f"Cloud Vision API failure: {cloud_err}")
+                # Continue to local as absolute last resort if not forced disabled
+                if os.getenv("DISABLE_VISION_LOCAL", "false").lower() == "true":
+                             raise cloud_err
+
+        # --- 💻 LOCAL LEGACY PROCESSING ---
         if not analyze_vision_query:
              return {"text": "⚠️ **Vision Engine Missing**: Model handler function unavailable."}
 
-        content = await file.read()
-        # Local processing (OCR + YOLO)
         analysis = analyze_vision_query(content)
         
-        # Handle specific engine errors (like Tesseract missing)
         if analysis.get("error"):
             if "Tesseract OCR not found" in analysis["error"]:
-                return {"text": "⚠️ **System Setup Required**: Tesseract OCR is not installed on the server. Please install Tesseract-OCR to enable image-to-text features. Object detection (YOLO) might still work if objects were found."}
+                # INSTEAD of just failing, TRY to automatically rescue it with cloud vision!
+                logger.warning("Local OCR failed, attempting dynamic rescue via Groq Cloud Vision...")
+                try:
+                    base64_image = base64.b64encode(content).decode('utf-8')
+                    rescue_completion = await client.chat.completions.create(
+                        messages=[{"role": "user","content": [{"type": "text", "text": user_query},{"type": "image_url","image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}}]}],
+                        model="llama-3.2-11b-vision-preview"
+                    )
+                    return {"text": rescue_completion.choices[0].message.content, "type": "cloud_vision_rescue", "objects": []}
+                except Exception: pass
+                return {"text": "⚠️ **System Setup Required**: Tesseract OCR is not installed on the server."}
             return {"text": f"⚠️ {analysis['error']}"}
 
         if not analysis["has_content"]:
-            return {"text": "I couldn't identify any clear text or objects in this photo. Could you try taking a clearer, well-lit picture?"}
+            # DYNAMIC RESCUE AGAIN
+            logger.warning("Local vision returned empty, invoking Cloud Vision rescue...")
+            try:
+                base64_image = base64.b64encode(content).decode('utf-8')
+                rescue_completion = await client.chat.completions.create(
+                    messages=[{"role": "user","content": [{"type": "text", "text": user_query},{"type": "image_url","image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}}]}],
+                    model="llama-3.2-11b-vision-preview"
+                )
+                return {"text": rescue_completion.choices[0].message.content, "type": "cloud_vision_rescue", "objects": []}
+            except Exception: pass
+            return {"text": "I couldn't identify any clear content. Try taking a clearer picture."}
 
         # Combine user custom prompt with dynamic visual metadata
         user_query = prompt or "Please explain this content in a simple way."
