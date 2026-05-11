@@ -1,29 +1,38 @@
-export default function TopBar({ onLogoClick, onMenuClick, onProfileClick, onBack, showBack, showMenu }) {
+export default function TopBar({ onLogoClick, onMenuClick, onProfileClick, onNewChatClick, onBack, showBack, showMenu }) {
   return (
     <header className="new-top-bar">
-      <div className="new-top-bar__left">
-        {showMenu && (
-          <button type="button" className="new-top-bar__btn" onClick={onMenuClick} aria-label="Open menu">
-            <span className="material-symbols-outlined">menu</span>
-          </button>
-        )}
+      <div className="top-bar-container">
         
-        {showBack && (
-          <button type="button" className="new-top-bar__btn" onClick={onBack} aria-label="Go back">
-            <span className="material-symbols-outlined">arrow_back</span>
-          </button>
-        )}
+        {/* LEFT CIRCLE */}
+        <div className="top-bar-left">
+          {(showMenu || showBack) && (
+            <button 
+              type="button" 
+              className={`floating-nav-btn ${!showBack ? "nav-btn-hamburger" : ""}`} 
+              onClick={showBack ? onBack : onMenuClick} 
+              aria-label={showBack ? "Go back" : "Open menu"}
+            >
+              <span className="material-symbols-outlined">
+                {showBack ? "arrow_back" : "menu"}
+              </span>
+            </button>
+          )}
+        </div>
 
-        <div className="new-top-bar__logo" onClick={onLogoClick} role="button" tabIndex="0" style={{ cursor: 'pointer' }}>
-          <span>mydeen.ai</span>
+        {/* CENTER TEXT */}
+        <div className="top-bar-center" onClick={onLogoClick} role="button" tabIndex="0">
+          <span className="top-bar-logo-text">Mydeen AI</span>
+        </div>
+
+        {/* RIGHT */}
+        <div className="top-bar-right">
+          <button type="button" className="floating-nav-btn" aria-label="Account/Profile" onClick={onProfileClick}>
+            <span className="material-symbols-outlined">
+              account_circle
+            </span>
+          </button>
         </div>
       </div>
-
-      <button type="button" className="new-top-bar__btn" aria-label="Account" onClick={onProfileClick}>
-        <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>
-          account_circle
-        </span>
-      </button>
     </header>
   );
 }

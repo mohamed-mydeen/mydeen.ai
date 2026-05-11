@@ -502,7 +502,9 @@ export default function Chat({
   isPlusMenuOpen, 
   isProcessing,
   language,
-  onVoiceClick
+  onVoiceClick,
+  pendingAttachment,
+  setPendingAttachment
 }) {
   const auth = useAuth();
   const [messages, setMessages]     = useState([]);
@@ -594,9 +596,12 @@ export default function Chat({
     inputRef.current?.focus();
   }, []);
 
-  const handleSend = useCallback(async (text, overrideHistory, currentSid) => {
+  const handleSend = useCallback(async (text, overrideHistory, currentSid, attachmentOverride) => {
     const trimmed = (text ?? input).trim();
-    if (!trimmed || loading) return;
+    const activeAttachment = attachmentOverride !== undefined ? attachmentOverride : pendingAttachment;
+    
+    // Allow submitting if text exists OR a file attachment exists!
+    if ((!trimmed && !activeAttachment) || loading) return;
 
     // ── Handle Safety Check Command ──
     if (trimmed.startsWith("SAFETY_CHECK:")) {
@@ -641,6 +646,72 @@ export default function Chat({
           return updated;
         });
       } finally {
+        setLoading(false);
+      }
+      return;
+    }
+
+    // ── NEW: Handle Image Attachment Command (ChatGPT Style) ──
+    if (activeAttachment && activeAttachment.type === 'image') {
+      const imagePreviewUrl = activeAttachment.preview;
+      const imageFile = activeAttachment.file;
+      const userMsgText = trimmed || "Analyze this photo";
+
+      // 1. Visually post User message WITH image in Chat history immediately!
+      setMessages(prev => [...prev, { role: "user", text: userMsgText, images: [imagePreviewUrl] }]);
+      setInput("");
+      setLoading(true);
+      setIsThinking(true);
+      
+      // Clear input bar visual preview state ASAP
+      setPendingAttachment(null); 
+
+      try {
+        const token = await (auth.isAuthenticated ? auth.getAccessToken() : localStorage.getItem("auth_token"));
+        const API_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
+        
+        const formData = new FormData();
+        formData.append("file", imageFile);
+        if (trimmed) {
+          formData.append("prompt", trimmed); // Send user's typing together with file!
+        }
+
+        const response = await fetch(`${API_URL}/vision/analyze`, {
+          method: "POST",
+          headers: { "Authorization": `Bearer ${token}` },
+          body: formData
+        });
+
+        if (!response.ok) throw new Error("Vision analysis failed");
+        const data = await response.json();
+        
+        setIsThinking(false);
+        const resultText = data.text || "No analysis was returned.";
+        
+        // 2. Premium SimStream Effect for instantaneous response consistency
+        let currentText = "";
+        const chunkSize = 4; // Characters per tick
+        for (let i = 0; i < resultText.length; i += chunkSize) {
+          currentText = resultText.slice(0, i + chunkSize);
+          setStreamingMessage(currentText);
+          await new Promise(resolve => setTimeout(resolve, 12)); // 12ms micro-burst
+        }
+        
+        // Finalize message commit
+        setStreamingMessage("");
+        setMessages(prev => [...prev, { 
+          role: "assistant", 
+          text: resultText 
+        }]);
+
+      } catch (err) {
+        console.error("Vision error:", err);
+        setMessages(prev => [...prev, { 
+          role: "assistant", 
+          text: `⚠️ Failed to process image: ${err.message || "Internal server error"}` 
+        }]);
+      } finally {
+        setIsThinking(false);
         setLoading(false);
       }
       return;
@@ -908,7 +979,7 @@ export default function Chat({
       <SmartSearchBar 
         value={input}
         inputRef={inputRef}
-        onSubmit={(text) => handleSend(text)}
+        onSubmit={(text, attachment) => handleSend(text, undefined, undefined, attachment)}
         onPlusClick={onPlusClick}
         isProcessing={loading || isProcessing}
         isMenuOpen={isPlusMenuOpen}
@@ -918,6 +989,8 @@ export default function Chat({
         showTypewriter={false}
         onVoiceClick={onVoiceClick}
         onVisionCapture={handleVisionCapture}
+        pendingAttachment={pendingAttachment}
+        setPendingAttachment={setPendingAttachment}
       />
 
 

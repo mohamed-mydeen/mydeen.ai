@@ -328,6 +328,7 @@ export default function App() {
   const [isChatActive, setIsChatActive]   = useState(false);
   const [initialQuery, setInitialQuery]   = useState({ text: "", isHistory: false });
   const [language, setLanguage]           = useState(() => localStorage.getItem("user_language") || "English");
+  const [pendingAttachment, setPendingAttachment] = useState(null); // { file, preview, type }
   const [deleteTargetSid, setDeleteTargetSid] = useState(null);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [showClearHistoryConfirm, setShowClearHistoryConfirm] = useState(false);
@@ -584,22 +585,13 @@ export default function App() {
           alert("Couldn't extract text from this PDF. It might be scanned or image-based.");
         }
       } else {
-        // Handle Image via new Backend Vision Engine
-        const token = await (isAuthenticated ? getAccessToken() : localStorage.getItem("auth_token"));
-        const formData = new FormData();
-        formData.append("file", file);
-
-        const response = await fetch(`${API_URL}/vision/analyze`, {
-          method: "POST",
-          headers: { "Authorization": `Bearer ${token}` },
-          body: formData
+        // CHATGPT STYLE: Store image in pending state instead of sending immediately
+        setPendingAttachment({
+          file: file,
+          preview: URL.createObjectURL(file),
+          type: 'image',
+          name: file.name
         });
-
-        if (!response.ok) throw new Error("Vision analysis failed");
-        const data = await response.json();
-        
-        // Navigate to chat with the result
-        goToChat(data.text);
       }
     } catch (err) {
       console.error("File processing error:", err);
@@ -756,6 +748,11 @@ export default function App() {
         }}
         onMenuClick={() => setIsSidebarOpen(true)}
         onProfileClick={() => navigate(VIEW.SETTINGS)}
+        onNewChatClick={() => {
+          setIsChatActive(false);
+          setInitialQuery({ text: "", isHistory: false, sessionId: null });
+          setView(VIEW.HOME);
+        }}
         onBack={() => {
           navigate(VIEW.HOME);
         }}
@@ -773,6 +770,8 @@ export default function App() {
               isProcessing={isProcessing}
               language={language}
               onVoiceClick={() => setShowVoice(true)}
+              pendingAttachment={pendingAttachment}
+              setPendingAttachment={setPendingAttachment}
             />
           ) : (
             <>
@@ -784,6 +783,8 @@ export default function App() {
                 isProcessing={isProcessing}
                 isMenuOpen={isPlusMenuOpen}
                 onVoiceClick={() => setShowVoice(true)}
+                pendingAttachment={pendingAttachment}
+                setPendingAttachment={setPendingAttachment}
               />
             </>
           )}

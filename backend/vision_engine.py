@@ -3,17 +3,40 @@ import numpy as np
 import pytesseract
 from PIL import Image
 import io
-from ultralytics import YOLO
+import os
 import logging
 
 logger = logging.getLogger(__name__)
 
-# Load YOLOv8 model (nano version for speed/local processing)
-try:
-    yolo_model = YOLO('yolov8n.pt') 
-except Exception as e:
-    logger.warning(f"Could not load YOLO model: {e}")
-    yolo_model = None
+# ── Lazy Loading Support for Heavyweight Models ───────────────────────────
+yolo_model = None
+_yolo_load_attempted = False
+
+def get_yolo_model():
+    """Lazy loader to prevent eager PyTorch allocation on boot (fixes Render OOM)"""
+    global yolo_model, _yolo_load_attempted
+    
+    if _yolo_load_attempted:
+        return yolo_model
+        
+    _yolo_load_attempted = True
+    
+    # Explicit flag to save RAM on Render
+    if os.getenv("DISABLE_VISION_LOCAL", "false").lower() == "true":
+        logger.info("📉 Local Vision Engine explicitly disabled via config (Saves RAM).")
+        return None
+
+    try:
+        from ultralytics import YOLO
+        logger.info("🧠 Loading YOLO Weights...")
+        yolo_model = YOLO('yolov8n.pt') 
+        logger.info("✅ YOLOv8 model loaded successfully.")
+    except ImportError:
+        logger.warning("⚠️ Could not import 'ultralytics'. Run `pip install ultralytics` to enable local vision.")
+    except Exception as e:
+        logger.warning(f"⚠️ Vision model loading skipped: {e}")
+    
+    return yolo_model
 
 def preprocess_image(image_bytes):
     """Convert bytes to OpenCV format and perform basic optimization"""
@@ -55,16 +78,17 @@ def detect_text(img):
 
 def detect_objects(img):
     """Detect objects using YOLOv8"""
-    if yolo_model is None or img is None:
+    model = get_yolo_model()
+    if model is None or img is None:
         return []
     
     try:
-        results = yolo_model(img, verbose=False)
+        results = model(img, verbose=False)
         detections = []
         for r in results:
             for box in r.boxes:
                 cls_id = int(box.cls[0])
-                label = yolo_model.names[cls_id]
+                label = model.names[cls_id]
                 conf = float(box.conf[0])
                 if conf > 0.4:
                     detections.append(label)

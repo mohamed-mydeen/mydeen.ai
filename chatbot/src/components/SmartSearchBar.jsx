@@ -29,8 +29,10 @@ export default function SmartSearchBar({
   showChips = true,
   showTypewriter = true,
   onVoiceClick,
-  value = "", // Added explicit prop to allow parent-driven input modification (like Edit)
-  inputRef    // Added to allow parent component to trigger focus() commands!
+  value = "", 
+  inputRef,
+  pendingAttachment,
+  setPendingAttachment
 }) {
   const [query, setQuery] = useState(value);
   const [isListening, setIsListening] = useState(false);
@@ -78,8 +80,9 @@ export default function SmartSearchBar({
 
   const handleSubmit = (e) => {
     e?.preventDefault();
-    if (query.trim()) {
-      onSubmit?.(query.trim());
+    if (query.trim() || pendingAttachment) {
+      // Pass both query AND current attachment up
+      onSubmit?.(query.trim(), pendingAttachment);
       setQuery("");
     }
   };
@@ -143,6 +146,23 @@ export default function SmartSearchBar({
 
         {/* Center: Input Area */}
         <div className="new-search-input-wrap">
+          {/* ChatGPT style Attachment Preview */}
+          {pendingAttachment && (
+            <div className="attachment-preview-inline">
+              <img src={pendingAttachment.preview} alt="Attached file" className="attachment-preview-img" />
+              <button 
+                type="button"
+                className="attachment-remove-btn" 
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setPendingAttachment(null);
+                }}
+              >
+                <span className="material-symbols-outlined">close</span>
+              </button>
+            </div>
+          )}
+
           <div className="placeholder-container">
             {showTypewriter && !query && (
               <span className="animated-placeholder">
@@ -167,7 +187,7 @@ export default function SmartSearchBar({
         {/* Right Side: Grouped Actions */}
         <div className="new-search-actions-group">
           {/* Voice Assistant - Blue styled */}
-          {onVoiceClick && !query.trim() && (
+          {onVoiceClick && !query.trim() && !pendingAttachment && (
             <button
               type="button"
               className="smart-action-btn smart-voice-assistant-btn"
@@ -189,7 +209,7 @@ export default function SmartSearchBar({
           )}
 
           {/* Mic Button */}
-          {!query.trim() && (
+          {!query.trim() && !pendingAttachment && (
             <button
               type="button"
               className={`smart-action-btn ${isListening ? "active" : ""}`}
@@ -214,8 +234,8 @@ export default function SmartSearchBar({
             </button>
           )}
 
-          {/* Send Button */}
-          {query.trim() && (
+          {/* Send Button - Enable if text OR attachment exists */}
+          {(query.trim() || pendingAttachment) && (
             <button type="submit" className="smart-send-btn">
               <span className="material-symbols-outlined">arrow_upward</span>
             </button>

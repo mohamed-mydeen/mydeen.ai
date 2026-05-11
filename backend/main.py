@@ -21,7 +21,7 @@ from pathlib import Path
 from typing import Optional, List
 from groq import AsyncGroq, Groq
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException, Depends, BackgroundTasks, File, UploadFile
+from fastapi import FastAPI, HTTPException, Depends, BackgroundTasks, File, UploadFile, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
@@ -1101,7 +1101,11 @@ except ImportError:
     VISION_AVAILABLE = False
 
 @app.post("/vision/analyze", tags=["vision"])
-async def vision_analyze(file: UploadFile = File(...), user: str = Depends(verify_token)):
+async def vision_analyze(
+    file: UploadFile = File(...), 
+    prompt: Optional[str] = Form(None), 
+    user: str = Depends(verify_token)
+):
     if not VISION_AVAILABLE:
         return {"text": "⚠️ **Vision System Offline**: The backend failed to load required computer vision libraries. Please restart server or check console log."}
 
@@ -1123,27 +1127,28 @@ async def vision_analyze(file: UploadFile = File(...), user: str = Depends(verif
         if not analysis["has_content"]:
             return {"text": "I couldn't identify any clear text or objects in this photo. Could you try taking a clearer, well-lit picture?"}
 
-        # Prepare prompt for Groq based on local analysis
+        # Combine user custom prompt with dynamic visual metadata
+        user_query = prompt or "Please explain this content in a simple way."
+
         if analysis["type"] == "text":
-            prompt = (
-                f"I have extracted this text from a student's photo (it might be notes, a textbook, or a screenshot):\n\n"
+            base_prompt = (
+                f"The user has provided an image containing the following extracted text:\n"
                 f"--- EXTRACTED TEXT ---\n{analysis['ocr_text']}\n--------------------\n\n"
-                f"Please explain this content in a simple, student-friendly way. "
-                f"If it's a question, solve it. If it's a note, summarize it. "
-                f"Use bullet points and keep it concise. Support Tanglish if the content suggests it."
+                f"User's Instruction: {user_query}\n\n"
+                f"Respond thoroughly based on the text provided."
             )
         else:
             obj_list = ", ".join(analysis["objects"]) if analysis.get("objects") else "Unknown objects"
-            prompt = (
-                f"A student shared a photo containing these detected objects: {obj_list}.\n"
-                f"Please provide a brief, interesting educational explanation about these objects or how they relate to each other. "
-                f"Keep it student-friendly and use bullet points."
+            base_prompt = (
+                f"The user has provided a photo where I detected these key elements: {obj_list}.\n\n"
+                f"User's Question/Instruction: {user_query}\n\n"
+                f"Address their instruction using the detected image contents as context."
             )
 
         # Get AI explanation from Groq (Llama-3.3-70b is great for reasoning)
         completion = await client.chat.completions.create(
-            messages=[{"role": "system", "content": "You are a helpful educational assistant."},
-                      {"role": "user", "content": prompt}],
+            messages=[{"role": "system", "content": "You are an intelligent AI multimodal assistant. Assist the user based on their uploaded image context and custom instruction."},
+                      {"role": "user", "content": base_prompt}],
             model=MODELS[0],
             temperature=0.7,
             max_tokens=1000,
