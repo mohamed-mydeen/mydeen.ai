@@ -10229,3 +10229,10 @@ textarea {
   color: #ffffff;
 }
 
+
+/* --- Z-INDEX LAYER CORRECTION --- */
+/* Fix to ensure sidebar is placed firmly above the new top nav bar on mobile/tablet */
+.sidebar-container {
+  z-index: 5000 !important;
+}
+
