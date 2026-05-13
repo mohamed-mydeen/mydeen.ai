@@ -767,7 +767,14 @@ export default function Chat({
               setSearchImages(images);
             },
             (suggestions) => setSearchSuggestions(suggestions),
-            (sid) => { if (!sidToUse) setSessionId(sid); }
+            (sid) => { 
+              if (!sidToUse) {
+                setSessionId(sid);
+                if (initialQuery.sessionId && onSessionIdUpdate) {
+                  onSessionIdUpdate(initialQuery.sessionId, sid);
+                }
+              }
+            }
           );
         } else {
           await streamMessage(trimmed, historyToUse, sidToUse, (chunk) => {
@@ -775,7 +782,12 @@ export default function Chat({
             setStreamingMessage(prev => prev + chunk);
             fullReply += chunk;
           }, (sid) => {
-            if (!sidToUse) setSessionId(sid);
+            if (!sidToUse) {
+              setSessionId(sid);
+              if (initialQuery.sessionId && onSessionIdUpdate) {
+                onSessionIdUpdate(initialQuery.sessionId, sid);
+              }
+            }
           });
         }
 

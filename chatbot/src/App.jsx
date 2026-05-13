@@ -631,6 +631,15 @@ export default function App() {
     setDeleteTargetSid(null);
   };
 
+  const handleSessionIdUpdate = (tempSid, realSid) => {
+    setHistory(prev => prev.map(item => 
+      item.sid === tempSid ? { ...item, sid: realSid, id: realSid } : item
+    ));
+    if (initialQuery.sessionId === tempSid) {
+      setInitialQuery(prev => ({ ...prev, sessionId: realSid }));
+    }
+  };
+
   const handleArchiveChat = async (sid, archived) => {
     try {
       const { archiveChat } = await import("./api/chatApi");
@@ -759,6 +768,7 @@ export default function App() {
               onVoiceClick={() => setShowVoice(true)}
               pendingAttachment={pendingAttachment}
               setPendingAttachment={setPendingAttachment}
+              onSessionIdUpdate={handleSessionIdUpdate}
             />
           ) : (
             <>
@@ -1032,10 +1042,16 @@ export default function App() {
             <p className="premium-modal__text">This will permanently delete all your chat history. This action cannot be undone.</p>
             <div className="premium-modal__actions">
               <button className="premium-modal__btn premium-modal__btn--cancel" onClick={() => setShowClearHistoryConfirm(false)}>Cancel</button>
-              <button className="premium-modal__btn premium-modal__btn--danger" onClick={() => { 
-                localStorage.removeItem("chat_history");
-                setHistory([]);
-                setShowClearHistoryConfirm(false);
+              <button className="premium-modal__btn premium-modal__btn--danger" onClick={async () => { 
+                try {
+                  const { api } = await import("./api/chatApi");
+                  await api.delete("/chats/all/everything"); // New endpoint we will add
+                  setHistory([]);
+                  setShowClearHistoryConfirm(false);
+                } catch (err) {
+                  console.error("Failed to clear history:", err);
+                  alert("Failed to clear cloud history. Please try again.");
+                }
               }}>Clear All</button>
             </div>
           </div>

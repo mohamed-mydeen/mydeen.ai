@@ -7224,6 +7224,7 @@ body {
   color: #ffffff;
   font-family: var(--font-main);
   animation: slideInUp 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  overflow: hidden; /* Lock viewport */
 }
 
 .claude-settings-header {
@@ -7268,11 +7269,18 @@ body {
   display: flex;
   flex-direction: column;
   gap: 16px;
-  padding-bottom: 120px;
+  padding-bottom: 40px; /* Reduced from 120px */
   width: 100%;
   max-width: 600px;
   /* Better centered look */
   margin: 0 auto;
+  /* Hide scrollbar but keep functionality */
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
+}
+
+.claude-settings-scroll-area::-webkit-scrollbar {
+  display: none; /* Chrome, Safari and Opera */
 }
 
 /* Account Card */

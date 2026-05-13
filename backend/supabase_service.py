@@ -58,6 +58,10 @@ class DBService:
         supabase.table("chats").delete().eq("id", chat_id).execute()
 
     @staticmethod
+    def delete_all_chats(user_id: str):
+        supabase.table("chats").delete().eq("user_id", user_id).execute()
+
+    @staticmethod
     def save_message(chat_id: str, user_id: str, role: str, content: str, message_type: str = "text", metadata: Dict = None) -> Dict:
         data = {
             "chat_id": chat_id,
