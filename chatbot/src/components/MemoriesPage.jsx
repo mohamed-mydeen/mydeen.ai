@@ -109,9 +109,9 @@ export default function MemoriesPage({ onBack }) {
         <button className="claude-header-btn" onClick={onBack}>
           <span className="material-symbols-outlined">arrow_back</span>
         </button>
-        <h2 className="claude-header-title">Memories</h2>
+        <h2 className="claude-header-title">Mydeen AI</h2>
         <button className="claude-header-btn" onClick={handleSave} disabled={saving} style={{ opacity: saving ? 0.5 : 1 }}>
-          <span className="material-symbols-outlined" style={{ color: 'var(--color-brand-blue)' }}>
+          <span className="material-symbols-outlined" style={{ color: 'var(--color-brand-blue)', fontSize: '28px' }}>
             {saving ? 'sync' : 'done'}
           </span>
         </button>
@@ -204,7 +204,7 @@ export default function MemoriesPage({ onBack }) {
             onClick={handleSave}
             disabled={saving}
           >
-            {saving ? 'Updating...' : 'Save All Memories'}
+            {saving ? 'Updating...' : 'Save Changes'}
           </button>
         </div>
 
