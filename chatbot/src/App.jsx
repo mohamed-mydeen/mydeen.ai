@@ -379,42 +379,29 @@ export default function App() {
   const [showVoice, setShowVoice] = useState(false);
   const fileInputRef = useRef(null);
 
-  /* ── Fetch history from Database ── */
+  /* ── Fetch history from Database (Supabase) ── */
   useEffect(() => {
     if (effectiveAuth) {
       const loadHistory = async () => {
         try {
-          const token = await (isAuthenticated ? getAccessToken() : localStorage.getItem("auth_token"));
-          if (!token) {
-            console.warn("No auth token available for history fetch");
-            return;
-          }
-
-          const response = await fetch(`${API_URL}/history`, {
-            headers: { "Authorization": `Bearer ${token}` }
-          });
+          const { getChats } = await import("./api/chatApi");
+          const data = await getChats();
           
-          if (response.ok) {
-            const data = await response.json();
-            console.log(`Fetched ${data.length} history items from DB`);
-            
-            setHistory(data.map(item => ({
-              id: item.session_id,   // use session_id as the unique key
-              query: item.query,
-              date: new Date(item.created_at).toLocaleDateString(),
-              sid: item.session_id,  // pass session_id for fetching messages
-              archived: item.archived || false
-            })));
-          } else {
-            console.error("History fetch failed:", response.status, await response.text());
-          }
+          setHistory(data.map(item => ({
+            id: item.id,   
+            query: item.title || "New Chat",
+            date: new Date(item.created_at).toLocaleDateString(),
+            sid: item.id,  
+            archived: item.is_archived || false
+          })));
         } catch (err) {
           console.error("Failed to fetch history:", err);
         }
       };
       loadHistory();
     }
-  }, [effectiveAuth, isAuthenticated]);
+  }, [effectiveAuth]);
+
 
   // Close menu when clicking anywhere else
   useEffect(() => {

@@ -7,12 +7,22 @@ import re
 import logging
 import asyncio
 
+import os
+from groq import AsyncGroq
 from wikipedia_search import search_wikipedia
 from search_ddg import search_duckduckgo
 from jina_reader import extract_url_content
 from image_search import fetch_images_for_query
 
 logger = logging.getLogger(__name__)
+
+# Initialize a separate client for the classifier to avoid circular imports
+GROQ_API_KEY = os.getenv("GEMINI_API_KEY") # Shared key
+classifier_client = AsyncGroq(api_key=GROQ_API_KEY) if GROQ_API_KEY else None
+
+# ── Simple Search Cache ────────────────────────────────────────────────
+SEARCH_CACHE = {} # {query: {"results": result, "timestamp": time}}
+CACHE_TTL = 3600 # 1 hour
 
 # ── Keywords that signal a need for live/recent web data ──────────────────
 
@@ -55,6 +65,52 @@ IMAGE_TRIGGERS = [
     r"\b(who is|who was|biography|actor|actress|singer|athlete|politician|celebrity|person)\b"
 ]
 
+async def classify_search_intent(query: str) -> str:
+    """
+    Uses a fast LLM to classify if the query MUST SEARCH or NO SEARCH.
+    Returns: 'MUST_SEARCH' or 'NO_SEARCH'
+    """
+    if not classifier_client:
+        return "MUST_SEARCH" if needs_web_search(query) else "NO_SEARCH"
+
+    prompt = f"""
+    Classify the following user query into 'MUST_SEARCH' or 'NO_SEARCH'.
+
+    MUST_SEARCH if the query is about:
+    - current information (today, now, latest news)
+    - recent events (2024, 2025, 2026)
+    - political office holders (CM, PM, President, etc.)
+    - changing facts (stock prices, crypto, sports scores)
+    - tech releases (new gadgets, AI updates)
+    - live public facts (weather, trending topics)
+
+    NO_SEARCH if the query is about:
+    - coding help (C++, Python, React, etc.)
+    - programming logic, algorithms, math
+    - grammar, explanations of concepts
+    - educational/academic definitions
+    - logic puzzles, philosophical questions
+    - casual conversation or follow-ups
+
+    User Query: "{query}"
+
+    Return ONLY 'MUST_SEARCH' or 'NO_SEARCH'.
+    """
+    try:
+        response = await classifier_client.chat.completions.create(
+            messages=[{"role": "system", "content": "You are a smart query classifier."},
+                      {"role": "user", "content": prompt}],
+            model="llama-3.1-8b-instant",
+            temperature=0,
+            max_tokens=10
+        )
+        decision = response.choices[0].message.content.strip().upper()
+        return "MUST_SEARCH" if "MUST_SEARCH" in decision else "NO_SEARCH"
+    except Exception as e:
+        logger.warning(f"Intent classification failed: {e}")
+        # Fallback to regex
+        return "MUST_SEARCH" if needs_web_search(query) or needs_wikipedia(query) else "NO_SEARCH"
+
 
 def needs_web_search(query: str) -> bool:
     """Returns True if the query requires live web data."""
@@ -81,32 +137,32 @@ def needs_images(query: str) -> bool:
             return True
     return False
 
-async def route_and_search(query: str) -> dict:
+async def route_and_search(query: str, force: bool = False) -> dict:
     """
     Master search router: decides which sources to use,
     runs them, and returns structured context + sources.
-    
-    Returns:
-        {
-          "context": str,       # formatted text to inject into AI prompt
-          "sources": list[dict] # list of {title, url, source}
-          "searched": bool
-        }
     """
-    use_wiki = needs_wikipedia(query)
-    use_ddg  = needs_web_search(query)
-    use_img  = needs_images(query)
+    # Check cache first
+    import time
+    cache_key = query.lower().strip()
+    if cache_key in SEARCH_CACHE:
+        entry = SEARCH_CACHE[cache_key]
+        if time.time() - entry["timestamp"] < CACHE_TTL:
+            logger.info(f"[SearchRouter] Cache hit for: {cache_key}")
+            return entry["results"]
 
-    # "who is" queries: always use BOTH Wikipedia AND DuckDuckGo
-    # because Wikipedia may have stale cache but DDG gets fresh snippets
-    if use_wiki and not use_ddg:
-        use_ddg = True
-
-    # If no triggers, skip search
-    if not use_wiki and not use_ddg and not use_img:
+    # AI Classification
+    intent = "MUST_SEARCH" if force else await classify_search_intent(query)
+    use_img = needs_images(query)
+    
+    # If no search needed and no images requested, skip
+    if intent == "NO_SEARCH" and not use_img:
         return {"context": "", "sources": [], "images": [], "searched": False}
 
-    logger.info(f"[SearchRouter] query='{query[:60]}' wiki={use_wiki} ddg={use_ddg} img={use_img}")
+    use_wiki = needs_wikipedia(query) or intent == "MUST_SEARCH"
+    use_ddg  = intent == "MUST_SEARCH" or use_wiki
+
+    logger.info(f"[SearchRouter] query='{query[:60]}' intent={intent} wiki={use_wiki} ddg={use_ddg} img={use_img}")
 
     tasks = []
     labels = []
@@ -207,9 +263,18 @@ async def route_and_search(query: str) -> dict:
             all_sources[len(wiki_results)]["title"] = jina_content.get("title", all_sources[len(wiki_results)]["title"])
 
     context = "\n\n".join(context_parts)
-    return {
+    final_result = {
         "context": context,
         "sources": all_sources,
         "images": img_results,
         "searched": True,
     }
+    
+    # Cache the result
+    if all_sources or img_results:
+        SEARCH_CACHE[cache_key] = {
+            "results": final_result,
+            "timestamp": time.time()
+        }
+        
+    return final_result

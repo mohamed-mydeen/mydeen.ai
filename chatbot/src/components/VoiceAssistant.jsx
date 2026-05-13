@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import VoiceOrb from "./VoiceOrb";
 import { useVoiceAssistant } from "../hooks/useVoiceAssistant";
 import { streamSearchMessage } from "../api/chatApi";
+import SpokenText from "./SpokenText";
 
 const IDLE_TIPS = [
   "Tap the orb to speak",
@@ -36,6 +37,7 @@ export default function VoiceAssistant({ onClose }) {
   const {
     voiceState, setVoiceState,
     transcript, setTranscript,
+    spokenCharIndex,
     isMuted,
     error, setError,
     startListening, stopListening,
@@ -170,8 +172,19 @@ export default function VoiceAssistant({ onClose }) {
           )}
           {displayText && (
             <div className="voice-v2-ai-text">
-              {displayText}
-              {streaming && <span className="voice-v2-cursor" style={{ backgroundColor: activeTheme.color }} />}
+              {streaming ? (
+                <>
+                  {displayText}
+                  <span className="voice-v2-cursor" style={{ backgroundColor: activeTheme.color }} />
+                </>
+              ) : (
+                <SpokenText 
+                  text={aiText} 
+                  currentCharIndex={spokenCharIndex} 
+                  isSpeaking={voiceState === "speaking"} 
+                  accentColor={activeTheme.color} 
+                />
+              )}
             </div>
           )}
           {!userText && !displayText && voiceState === "idle" && (

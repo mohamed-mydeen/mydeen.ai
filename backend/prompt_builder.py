@@ -36,15 +36,15 @@ LIVE WEB SEARCH RESULTS (Retrieved just now — {__import__('datetime').datetime
 {source_lines}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-⚠️ CRITICAL INSTRUCTIONS — FOLLOW EXACTLY:
+⚠️ STRICT GROUNDING RULES — FOLLOW EXACTLY:
 1. The retrieved information above is LIVE and MORE ACCURATE than your training data.
-2. If the retrieved data contradicts your training knowledge, ALWAYS trust the retrieved data.
-3. Your training knowledge has a cutoff date — for current events, politicians, prices, scores, 
-   or any time-sensitive facts, USE ONLY the retrieved information above.
-4. Cite sources naturally in your answer. Do not output raw markdown links or bracketed citations in the text.
-5. Be direct and confident. Synthesize the retrieved info into a clear, single answer. Do not hedge by saying "the exact name is not mentioned" if you can clearly infer it from the context (e.g., if a party leader just won the state election, they are the Chief Minister).
-6. Do NOT say "As of my last update" or "I don't have real-time data" — you DO have it above.
+2. If the retrieved data contradicts your internal memory, ALWAYS trust the retrieved data.
+3. Your internal memory is OUTDATED for current events, politicians, prices, or live facts. Use ONLY the retrieved info above for these.
+4. DO NOT hallucinate. If the context doesn't have the answer, state that you couldn't find specific details in current sources.
+5. Answer ONLY using retrieved source content for factual claims.
+6. Cite sources naturally. Do not use "As of my last update".
 """
+
     if images and len(images) > 0:
         injected_system += f"""
 7. 🖼️ VISUAL SEARCH SUCCESS: High-quality images for the user's request have already been fetched by the backend and are CURRENTLY VISIBLE to the user in a beautiful image gallery component directly below your response.

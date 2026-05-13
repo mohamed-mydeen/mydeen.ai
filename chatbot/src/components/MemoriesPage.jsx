@@ -51,12 +51,14 @@ export default function MemoriesPage({ onBack }) {
   useEffect(() => {
     async function loadData() {
       try {
-        const data = await getMemories();
-        setReferenceSavedMemories(data.referenceSavedMemories ?? true);
-        setReferenceChatHistory(data.referenceChatHistory ?? true);
-        setNickname(data.nickname || "");
-        setOccupation(data.occupation || "");
-        setMoreAboutYou(data.moreAboutYou || "");
+        const { getUserSettings } = await import("../api/chatApi");
+        const data = await getUserSettings();
+        const memories = data.memories || {};
+        setReferenceSavedMemories(memories.referenceSavedMemories ?? true);
+        setReferenceChatHistory(memories.referenceChatHistory ?? true);
+        setNickname(memories.nickname || "");
+        setOccupation(memories.occupation || "");
+        setMoreAboutYou(memories.moreAboutYou || "");
       } catch (err) {
         console.error("Failed to load memories:", err);
       } finally {
@@ -69,12 +71,15 @@ export default function MemoriesPage({ onBack }) {
   const handleSave = async () => {
     setSaving(true);
     try {
-      await updateMemories({
-        referenceSavedMemories,
-        referenceChatHistory,
-        nickname,
-        occupation,
-        moreAboutYou,
+      const { updateUserSettings } = await import("../api/chatApi");
+      await updateUserSettings({
+        memories: {
+          referenceSavedMemories,
+          referenceChatHistory,
+          nickname,
+          occupation,
+          moreAboutYou,
+        }
       });
       setToast("Memories updated");
       setTimeout(() => setToast(""), 2000);
@@ -84,6 +89,7 @@ export default function MemoriesPage({ onBack }) {
       setSaving(false);
     }
   };
+
 
   if (loading) {
     return (

@@ -860,28 +860,27 @@ export default function Chat({
   useEffect(() => {
     const fetchSessionHistory = async () => {
       try {
-        const { getAccessToken, isAuthenticated, isLoading: authLoading } = auth;
-        if (authLoading) return;
+        const { getChatMessages } = await import("../api/chatApi");
         const isHistory = initialQuery?.isHistory || false;
         const sid = initialQuery?.sessionId;
         if (!isHistory || !sid) return;
-        const token = await (isAuthenticated ? getAccessToken() : localStorage.getItem("auth_token"));
-        if (!token) return;
-        const API_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
-        const response = await fetch(`${API_URL}/history/${sid}`, {
-          headers: { "Authorization": `Bearer ${token}` }
-        });
-        if (response.ok) {
-          const data = await response.json();
-          setMessages(data.map(m => ({ role: m.role, text: m.content, sources: m.sources, images: m.images })));
-          setSessionId(sid);
-        }
+
+        const data = await getChatMessages(sid);
+        setMessages(data.map(m => ({ 
+          role: m.role, 
+          text: m.content, 
+          sources: m.metadata?.sources, 
+          images: m.metadata?.images,
+          suggestions: m.metadata?.suggestions
+        })));
+        setSessionId(sid);
       } catch (err) {
         console.error("[Chat] Failed to load history:", err);
       }
     };
     fetchSessionHistory();
-  }, [auth.isAuthenticated, auth.isLoading, initialQuery?.sessionId, initialQuery?.isHistory]);
+  }, [initialQuery?.sessionId, initialQuery?.isHistory]);
+
 
   const startListening = () => {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;

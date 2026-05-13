@@ -80,18 +80,44 @@ export default function SettingsPage({ onNavigate, onLogout, onClearHistory, lan
   const { user: supaUser } = useAuth();
   
   // Customization States
-  const [accentColor, setAccentColor] = useState(() => localStorage.getItem("accent_color") || "#3b82f6");
-  const [fontFamily, setFontFamily]   = useState(() => localStorage.getItem("font_family") || "Inter");
+  const [accentColor, setAccentColor] = useState("#3b82f6");
+  const [fontFamily, setFontFamily]   = useState("Inter");
+  const [isLoading, setIsLoading] = useState(true);
   
   useEffect(() => {
+    const loadSettings = async () => {
+      try {
+        const { getUserSettings } = await import('../api/chatApi');
+        const settings = await getUserSettings();
+        if (settings.theme_color) setAccentColor(settings.theme_color);
+        if (settings.font_family) setFontFamily(settings.font_family);
+      } catch (err) {
+        console.error("Failed to load settings:", err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    loadSettings();
+  }, []);
+
+  const saveSetting = async (key, value) => {
+    try {
+      const { updateUserSettings } = await import('../api/chatApi');
+      await updateUserSettings({ [key]: value });
+    } catch (err) {
+      console.error(`Failed to save ${key}:`, err);
+    }
+  };
+
+  useEffect(() => {
     document.documentElement.style.setProperty('--color-brand-blue', accentColor);
-    localStorage.setItem("accent_color", accentColor);
-  }, [accentColor]);
+    if (!isLoading) saveSetting('theme_color', accentColor);
+  }, [accentColor, isLoading]);
 
   useEffect(() => {
     document.documentElement.style.setProperty('--font-main', `'${fontFamily}', sans-serif`);
-    localStorage.setItem("font_family", fontFamily);
-  }, [fontFamily]);
+    if (!isLoading) saveSetting('font_family', fontFamily);
+  }, [fontFamily, isLoading]);
 
   useEffect(() => {
     localStorage.setItem("user_language", language);
@@ -109,6 +135,7 @@ export default function SettingsPage({ onNavigate, onLogout, onClearHistory, lan
   ];
 
   const FONT_OPTIONS = ["Inter", "Poppins", "Outfit", "Lexend", "Roboto", "JetBrains Mono"];
+
 
   return (
     <main className="claude-settings-canvas page-transition">

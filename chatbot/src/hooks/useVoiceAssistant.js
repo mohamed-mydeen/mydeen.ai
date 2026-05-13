@@ -10,6 +10,7 @@ export function useVoiceAssistant({ onStreamChunk, onStreamDone, voicePreference
   const [spokenText, setSpokenText]   = useState("");
   const [isMuted, setIsMuted]         = useState(false);
   const [error, setError]             = useState(null);
+  const [spokenCharIndex, setSpokenCharIndex] = useState(0);
 
   const recognitionRef = useRef(null);
   const synthRef       = useRef(window.speechSynthesis);
@@ -68,6 +69,7 @@ export function useVoiceAssistant({ onStreamChunk, onStreamDone, voicePreference
     if (isMutedRef.current || !text) { onDone?.(); return; }
 
     synthRef.current.cancel();
+    setSpokenCharIndex(0); // Reset progress
     const utterance = new SpeechSynthesisUtterance(text);
 
     // Pick best available voice based on preference
@@ -89,9 +91,23 @@ export function useVoiceAssistant({ onStreamChunk, onStreamDone, voicePreference
     utterance.pitch  = voicePreference === "male" ? 0.9 : 1.1;
     utterance.volume = 1.0;
 
-    utterance.onstart = () => setVoiceState("speaking");
-    utterance.onend   = () => { setVoiceState("idle"); onDone?.(); };
+    utterance.onstart = () => {
+      setVoiceState("speaking");
+      setSpokenCharIndex(0);
+    };
+    utterance.onend   = () => { 
+      setVoiceState("idle"); 
+      setSpokenCharIndex(text.length); // Mark as complete
+      onDone?.(); 
+    };
     utterance.onerror = () => { setVoiceState("idle"); onDone?.(); };
+
+    // Track speech boundary (word-by-word highlighting)
+    utterance.onboundary = (event) => {
+      if (event.name === "word") {
+        setSpokenCharIndex(event.charIndex);
+      }
+    };
 
     utteranceRef.current = utterance;
     synthRef.current.speak(utterance);
@@ -122,6 +138,7 @@ export function useVoiceAssistant({ onStreamChunk, onStreamDone, voicePreference
     setTranscript,
     spokenText,
     setSpokenText,
+    spokenCharIndex,
     isMuted,
     error,
     setError,

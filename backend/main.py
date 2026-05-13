@@ -18,7 +18,8 @@ import secrets
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
+
 from groq import AsyncGroq, Groq
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Depends, BackgroundTasks, File, UploadFile, Form
@@ -113,47 +114,16 @@ TOKEN_EXPIRY         = 120  # minutes
 
 bearer_scheme = HTTPBearer()
 
-# ─── DATABASE (MongoDB) ──────────────────────────────────────────────────
-from pymongo import MongoClient
-
-MONGO_URI = os.getenv("MONGO_URI", "mongodb://localhost:27017")
-try:
-    mongo_client = MongoClient(MONGO_URI, serverSelectionTimeoutMS=2000)
-    mongo_client.server_info()  # trigger connection check
-    db = mongo_client["chatmate"]
-    chat_history_col = db["chat_history"]
-    logger.info("✅ Connected to MongoDB successfully!")
-except Exception as e:
-    logger.warning(f"⚠️ Could not connect to local/configured MongoDB: {e}. Session history will fall back to in-memory/JSON store.")
-    mongo_client = None
-    chat_history_col = None
+# ─── DATABASE (Supabase) ──────────────────────────────────────────────────
+from supabase_service import DBService
+logger.info("✅ Database Service initialized (Supabase)")
 
 
 
-# ── User Store (JSON file) ──────────────────────────────────────────────
 
-USERS_FILE = Path(__file__).parent / "users.json"
+# ── Auth Helpers ───────────────────────────────────────────────────────
+# (Local password hashing removed in favor of Supabase Auth)
 
-def load_users() -> dict:
-    if USERS_FILE.exists():
-        return json.loads(USERS_FILE.read_text())
-    return {}
-
-def save_users(users: dict):
-    USERS_FILE.write_text(json.dumps(users, indent=2))
-
-def hash_password(password: str) -> str:
-    """Simple SHA-256 with a stored salt — no external libs needed."""
-    salt = secrets.token_hex(16)
-    h = hashlib.sha256(f"{salt}{password}".encode()).hexdigest()
-    return f"{salt}:{h}"
-
-def verify_password(password: str, stored: str) -> bool:
-    try:
-        salt, h = stored.split(":", 1)
-        return hashlib.sha256(f"{salt}{password}".encode()).hexdigest() == h
-    except Exception:
-        return False
 
 # ── Token helpers ───────────────────────────────────────────────────────
 
@@ -202,42 +172,20 @@ async def get_supabase_jwks():
     return None
 
 async def verify_token(credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme)) -> str:
+    """
+    Verifies Supabase JWT and returns the user ID (sub).
+    """
     token = credentials.credentials
     try:
         header = jwt.get_unverified_header(token)
         alg = header.get("alg")
         
-        # 1. Asymmetric (Google login)
+        # 1. Supabase Asymmetric (Google/OAuth)
         if alg in ["ES256", "RS256"]:
             jwks = await get_supabase_jwks()
             if jwks:
-                try:
-                    payload = jwt.decode(token, jwks, algorithms=[alg], options={"verify_aud": False})
-                    return payload.get("email") or payload.get("sub")
-                except Exception as e:
-                    logger.warning(f"Failed to decode asymmetric token with JWKS: {e}. Trying unverified decode.")
-            
-            # Unverified decode fallback
-            payload = jwt.decode(token, "", options={"verify_signature": False, "verify_aud": False})
-            return payload.get("email") or payload.get("sub")
-        
-        # 2. Symmetric (Email login)
-        if alg == "HS256":
-            if SUPABASE_JWT_SECRET:
-                try:
-                    payload = jwt.decode(token, SUPABASE_JWT_SECRET, algorithms=["HS256"], options={"verify_aud": False})
-                    return payload.get("email") or payload.get("sub")
-                except Exception as e:
-                    logger.warning(f"Failed to decode symmetric token with secret: {e}. Trying unverified decode.")
-            
-            # Try legacy local fallback
-            try:
-                payload = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
+                payload = jwt.decode(token, jwks, algorithms=[alg], options={"verify_aud": False})
                 return payload.get("sub")
-            except Exception:
-                pass
-                
-            # Unverified decode fallback
             payload = jwt.decode(token, "", options={"verify_signature": False, "verify_aud": False})
             return payload.get("email") or payload.get("sub")
 
@@ -383,222 +331,101 @@ def is_rate_limit_error(exc):
 def health():
     return {"status": "ok", "active_model": MODEL_NAME}
 
-# ── Auth endpoints ──────────────────────────────────────────────────────
+# Auth endpoints removed (Use Supabase Auth on Frontend)
 
-@app.post("/register", tags=["auth"])
-def register(body: AuthRequest):
-    email = body.email.strip().lower()
-    users = load_users()
-    if email in users:
-        raise HTTPException(status_code=409, detail="Account already exists")
-    users[email] = hash_password(body.password)
-    save_users(users)
-    token = create_token(email)
-    return {"access_token": token, "token_type": "bearer", "email": email}
-
-@app.post("/login", tags=["auth"])
-def login(body: AuthRequest):
-    email = body.email.strip().lower()
-    users = load_users()
-    stored = users.get(email)
-    password_hash = stored.get("password") if isinstance(stored, dict) else stored
-    if not password_hash or not verify_password(body.password, password_hash):
-        raise HTTPException(status_code=401, detail="Invalid email or password")
-    token = create_token(email)
-    return {"access_token": token, "token_type": "bearer", "email": email}
 
 
 # ── Chat History ───────────────────────────────────────────────────────
 
-@app.get("/history", tags=["chat"])
-async def get_chat_history(user_email: str = Depends(verify_token)):
-    """Fetch unique chat sessions for the user"""
-    if chat_history_col is None:
-        return []
+# ─── Chat Management (Supabase) ─────────────────────────────────────────
+
+@app.get("/chats", tags=["chats"])
+async def list_chats(user_id: str = Depends(verify_token)):
+    """Fetch all active chat sessions for the user."""
     try:
-        rows = list(chat_history_col.find({"user_email": user_email}))
-        if not rows:
-            return []
-
-        # Convert _id to string
-        for r in rows:
-            r["id"] = str(r["_id"])
-
-        has_stored_sessions = any(row.get("session_id") is not None for row in rows)
-
-        if has_stored_sessions:
-            sessions = {}
-            for item in rows:
-                sid = item.get("session_id")
-                if not sid:
-                    continue
-                # Skip archived if not specifically requested (optional filter)
-                # For now, we'll just return all and let frontend filter, or add a param
-                if sid not in sessions or item.get("created_at") > sessions[sid]["created_at"]:
-                    sessions[sid] = {
-                        "id": sid,
-                        "session_id": sid,
-                        "query": item.get("session_title") or item.get("content")[:50],
-                        "created_at": item.get("created_at"),
-                        "archived": item.get("archived", False)
-                    }
-            return sorted(sessions.values(), key=lambda x: x["created_at"], reverse=True)
-        else:
-            try:
-                sorted_rows = sorted(rows, key=lambda x: datetime.fromisoformat(x.get("created_at").replace("Z", "+00:00")))
-            except Exception:
-                sorted_rows = rows
-
-            grouped_sessions = []
-            current_session = []
-            prev_time = None
-
-            for item in sorted_rows:
-                created_at_str = item.get("created_at")
-                if not created_at_str:
-                    continue
-                try:
-                    current_time = datetime.fromisoformat(created_at_str.replace("Z", "+00:00"))
-                except Exception:
-                    current_time = datetime.now(timezone.utc)
-
-                if not current_session:
-                    current_session.append(item)
-                else:
-                    time_gap = (current_time - prev_time).total_seconds()
-                    if time_gap > 1800:
-                        grouped_sessions.append(current_session)
-                        current_session = [item]
-                    else:
-                        current_session.append(item)
-                
-                prev_time = current_time
-
-            if current_session:
-                grouped_sessions.append(current_session)
-
-            sessions_list = []
-            for s in grouped_sessions:
-                user_msg = next((m for m in s if m.get("role") == "user"), s[0])
-                first_msg = s[0]
-                sid = first_msg.get("id") or f"sess_{int(datetime.fromisoformat(first_msg.get('created_at').replace('Z', '+00:00')).timestamp())}"
-                sessions_list.append({
-                    "id": sid,
-                    "session_id": sid,
-                    "query": user_msg.get("content")[:50],
-                    "created_at": first_msg.get("created_at")
-                })
-            
-            return sorted(sessions_list, key=lambda x: x["created_at"], reverse=True)
-
+        return DBService.get_recent_chats(user_id)
     except Exception as e:
-        logger.error(f"Failed to fetch sessions for {user_email}: {e}")
+        logger.error(f"Failed to list chats: {e}")
         return []
 
-@app.patch("/history/{session_id}/rename", tags=["chat"])
-async def rename_session(session_id: str, body: RenameRequest, user_email: str = Depends(verify_token)):
-    if chat_history_col is None:
-        raise HTTPException(503, "DB not available")
-    result = chat_history_col.update_many(
-        {"user_email": user_email, "session_id": session_id},
-        {"$set": {"session_title": body.title}}
-    )
-    if result.modified_count == 0:
-        raise HTTPException(404, "Session not found")
-    return {"status": "success"}
+@app.post("/chats", tags=["chats"])
+async def create_new_chat(user_id: str = Depends(verify_token)):
+    """Create a fresh chat session."""
+    try:
+        return DBService.create_chat(user_id)
+    except Exception as e:
+        logger.error(f"Failed to create chat: {e}")
+        raise HTTPException(500, "Could not create chat")
 
-@app.patch("/history/{session_id}/archive", tags=["chat"])
-async def archive_session(session_id: str, body: ArchiveRequest, user_email: str = Depends(verify_token)):
-    if chat_history_col is None:
-        raise HTTPException(503, "DB not available")
-    chat_history_col.update_many(
-        {"user_email": user_email, "session_id": session_id},
-        {"$set": {"archived": body.archived}}
-    )
-    return {"status": "success"}
+@app.get("/chats/{chat_id}/messages", tags=["chats"])
+async def get_messages(chat_id: str, user_id: str = Depends(verify_token)):
+    """Fetch all messages for a specific chat."""
+    try:
+        # Note: Security is handled via verify_token and potentially RLS in DB
+        return DBService.get_chat_messages(chat_id)
+    except Exception as e:
+        logger.error(f"Failed to fetch messages: {e}")
+        return []
 
-@app.delete("/history/{session_id}", tags=["chat"])
-async def delete_session(session_id: str, user_email: str = Depends(verify_token)):
-    if chat_history_col is None:
-        raise HTTPException(503, "DB not available")
-    chat_history_col.delete_many({"user_email": user_email, "session_id": session_id})
-    return {"status": "success"}
+@app.patch("/chats/{chat_id}", tags=["chats"])
+async def update_chat(chat_id: str, body: Dict[str, Any], user_id: str = Depends(verify_token)):
+    """Rename or Archive a chat."""
+    try:
+        if "title" in body:
+            return DBService.rename_chat(chat_id, body["title"])
+        if "is_archived" in body:
+            return DBService.archive_chat(chat_id, body["is_archived"])
+        return {"status": "no_changes"}
+    except Exception as e:
+        logger.error(f"Failed to update chat: {e}")
+        raise HTTPException(500, "Update failed")
 
-async def generate_chat_title(user_email: str, session_id: str, first_message: str):
-    """Automatically generate a short title for a new chat session"""
-    if chat_history_col is None: return
+@app.delete("/chats/{chat_id}", tags=["chats"])
+async def delete_chat(chat_id: str, user_id: str = Depends(verify_token)):
+    """Permanently delete a chat."""
+    try:
+        DBService.delete_chat(chat_id)
+        return {"status": "deleted"}
+    except Exception as e:
+        logger.error(f"Failed to delete chat: {e}")
+        raise HTTPException(500, "Delete failed")
+
+# ─── User Settings ──────────────────────────────────────────────────────
+
+@app.get("/user/settings", tags=["user"])
+async def get_settings(user_id: str = Depends(verify_token)):
+    try:
+        return DBService.get_user_settings(user_id)
+    except Exception as e:
+        logger.error(f"Failed to fetch settings: {e}")
+        return {}
+
+@app.patch("/user/settings", tags=["user"])
+async def update_settings(body: Dict[str, Any], user_id: str = Depends(verify_token)):
+    try:
+        return DBService.update_user_settings(user_id, body)
+    except Exception as e:
+        logger.error(f"Failed to update settings: {e}")
+        raise HTTPException(500, "Update failed")
+
+# ─── Optimized Context & Title Generation ────────────────────────────────
+
+async def generate_chat_title(chat_id: str, first_message: str):
+    """Automatically generate a short title for a new chat session."""
     try:
         prompt = f"Generate a very short, concise chat title (max 5 words) for this first message: '{first_message}'. Return ONLY the title, no quotes or extra text."
         completion = await client.chat.completions.create(
-            messages=[{"role": "system", "content": "You are a helpful assistant."},
+            messages=[{"role": "system", "content": "You are a title generator."},
                       {"role": "user", "content": prompt}],
-            model=MODELS[1], # Use a lighter model for titles to save rate limits
+            model="llama-3.1-8b-instant",
             temperature=0.3,
             max_tokens=20,
         )
         title = completion.choices[0].message.content.strip().strip('"')
-        chat_history_col.update_many(
-            {"user_email": user_email, "session_id": session_id},
-            {"$set": {"session_title": title}}
-        )
+        DBService.rename_chat(chat_id, title)
     except Exception as e:
         logger.warning(f"Failed to generate title: {e}")
-@app.get("/history/{session_id}", tags=["chat"])
-async def get_session_messages(session_id: str, user_email: str = Depends(verify_token)):
-    """Fetch all messages for a specific session"""
-    if chat_history_col is None:
-        return []
-    try:
-        rows = list(chat_history_col.find({"user_email": user_email}))
-        if not rows:
-            return []
 
-        for r in rows:
-            r["id"] = str(r["_id"])
-
-        has_stored_sessions = any(row.get("session_id") is not None for row in rows)
-
-        if has_stored_sessions:
-            session_rows = [row for row in rows if row.get("session_id") == session_id]
-            try:
-                session_rows = sorted(session_rows, key=lambda x: datetime.fromisoformat(x.get("created_at").replace("Z", "+00:00")))
-            except Exception:
-                pass
-            
-            return [{
-                "role": "ai" if m["role"] in ["assistant", "ai"] else m["role"], 
-                "content": m["content"],
-                "sources": m.get("sources", []),
-                "images": m.get("images", [])
-            } for m in session_rows]
-        else:
-            try:
-                sorted_rows = sorted(rows, key=lambda x: datetime.fromisoformat(x.get("created_at").replace("Z", "+00:00")))
-            except Exception:
-                sorted_rows = rows
-
-            grouped_sessions = []
-            current_session = []
-            prev_time = None
-
-            for item in sorted_rows:
-                created_at_str = item.get("created_at")
-                if not created_at_str:
-                    continue
-                try:
-                    current_time = datetime.fromisoformat(created_at_str.replace("Z", "+00:00"))
-                except Exception:
-                    current_time = datetime.now(timezone.utc)
-
-                if not current_session:
-                    current_session.append(item)
-                else:
-                    time_gap = (current_time - prev_time).total_seconds()
-                    if time_gap > 1800:
-                        grouped_sessions.append(current_session)
-                        current_session = [item]
-                    else:
-                        current_session.append(item)
                 
                 prev_time = current_time
 
@@ -846,25 +673,24 @@ class SearchChatRequest(BaseModel):
 async def chat_search_stream(
     body: SearchChatRequest,
     background_tasks: BackgroundTasks,
-    user: str = Depends(verify_token)
+    user_id: str = Depends(verify_token)
 ):
     """
-    Enhanced streaming endpoint with live web search.
-    1. Detects if the query needs web search
-    2. Queries Wikipedia / DuckDuckGo / Jina Reader
-    3. Injects context into the AI prompt
-    4. Streams the AI response with source citations
+    Enhanced streaming endpoint with live web search and Supabase persistence.
     """
-    users = load_users()
-    session_id = body.session_id or f"sess_{int(time.time())}"
-    session_title = body.message[:50]
-    queue: asyncio.Queue = asyncio.Queue()
+    # 1. Ensure Chat Session
+    if not body.session_id:
+        chat = DBService.create_chat(user_id, title=body.message[:50])
+        session_id = chat["id"]
+        # Generate title asynchronously
+        background_tasks.add_task(generate_chat_title, session_id, body.message)
+    else:
+        session_id = body.session_id
 
-    # Save user message to DB
-    if chat_history_col is not None:
-        background_tasks.add_task(save_to_db, user, "user", body.message, session_id, session_title)
-        if not body.session_id:
-            background_tasks.add_task(generate_chat_title, user, session_id, body.message)
+    # 2. Save User Message
+    background_tasks.add_task(DBService.save_message, session_id, user_id, "user", body.message)
+
+    queue: asyncio.Queue = asyncio.Queue()
 
     async def worker():
         full_reply = []
@@ -875,42 +701,40 @@ async def chat_search_stream(
             await queue.put(json.dumps({"session_id": session_id}))
 
             # Step 2: Detect and run web search
-            do_search = SEARCH_AVAILABLE and (body.force_search or needs_web_search(body.message) or needs_wikipedia(body.message) or needs_images(body.message))
+            search_result = {"context": "", "sources": [], "images": [], "searched": False}
+            if SEARCH_AVAILABLE:
+                search_result = await route_and_search(body.message, force=body.force_search)
+                sources = search_result.get("sources", [])
+                images = search_result.get("images", [])
+                context = search_result.get("context", "")
+                do_search = search_result.get("searched", False)
 
-            if do_search:
-                await queue.put(json.dumps({"status": "searching", "message": "Searching sources"}))
-                try:
-                    search_result = await route_and_search(body.message)
-                    sources = search_result.get("sources", [])
-                    images = search_result.get("images", [])
-                    context = search_result.get("context", "")
-
-                    if sources or images:
-                        await queue.put(json.dumps({
-                            "status": "sources_found",
-                            "sources": sources,
-                            "images": images,
-                            "message": f"Found {len(sources)} sources and {len(images)} images"
-                        }))
-                except Exception as search_err:
-                    logger.warning(f"Search failed, falling back to model only: {search_err}")
-                    context = ""
-                    sources = []
-                    images = []
+                if do_search:
+                    await queue.put(json.dumps({
+                        "status": "sources_found",
+                        "sources": sources,
+                        "images": images,
+                        "message": f"Found {len(sources)} sources"
+                    }))
             else:
+                do_search = False
                 context = ""
 
-            # Step 3: Build base messages (includes system prompt and conversational memory)
-            base_messages = build_history(body.history, user, users)
-
+            # Step 3: Build Context from DB (Short-term memory window)
+            # This optimizes Groq usage by only sending the last 10 messages
+            db_context = DBService.get_optimized_context(session_id, limit=10)
+            
+            messages = [{"role": "system", "content": SYSTEM_PROMPT}]
+            messages.extend(db_context)
+            
+            # If search context exists, inject it
             if do_search:
-                # Injects search context into existing system prompt, preserving memories
-                current_sys_prompt = base_messages[0]["content"]
-                search_aware_messages = build_search_aware_prompt(current_sys_prompt, body.message, context, sources, images)
-                # Replace just the first system prompt entry with search-aware variant
-                base_messages[0] = search_aware_messages[0]
+                search_aware = build_search_aware_prompt(SYSTEM_PROMPT, body.message, context, sources, images)
+                messages[0] = search_aware[0]
 
-            base_messages.append({"role": "user", "content": body.message})
+            # Ensure the current message is at the end (if not already in db_context)
+            if not db_context or db_context[-1]["content"] != body.message:
+                messages.append({"role": "user", "content": body.message})
 
             # Step 4: Stream AI response
             await queue.put(json.dumps({"status": "generating", "message": "Generating response"}))
@@ -919,7 +743,7 @@ async def chat_search_stream(
                 current_model = MODELS[attempt % len(MODELS)]
                 try:
                     stream = await client.chat.completions.create(
-                        messages=base_messages,
+                        messages=messages,
                         model=current_model,
                         temperature=0.7,
                         max_tokens=1536,
@@ -932,45 +756,26 @@ async def chat_search_stream(
                             full_reply.append(content)
                             await queue.put(json.dumps({"text": content}))
 
-                    # NOTE: Sources are sent as structured JSON events (not text)
-                    # The frontend SourcesBar component renders them as premium UI
-
-                    # Save to DB
+                    # Save AI reply to DB
                     final_text = "".join(full_reply)
-                    if chat_history_col is not None and full_reply:
+                    if final_text:
                         background_tasks.add_task(
-                            save_to_db, user, "assistant", final_text, session_id, session_title, sources, images
+                            DBService.save_message, session_id, user_id, "assistant", final_text, 
+                            metadata={"sources": sources, "images": images}
                         )
 
-                    # Step 4: Generate contextual follow-up suggestions
+                    # Step 5: Suggestions
                     try:
-                        suggestion_prompt = f"Based on the user's query: '{body.message}' and the assistant's response: '{final_text[:400]}...', generate 3 brief, engaging follow-up questions the user might ask next. Return ONLY the questions, one per line, no numbers, no explanation."
+                        suggestion_prompt = f"Based on: '{body.message}', generate 3 short follow-up questions. Return ONLY questions, one per line."
                         sug_res = await client.chat.completions.create(
-                            model="llama-3.1-8b-instant", # Fast model for utility tasks
-                            messages=[{"role": "system", "content": "You are a helpful assistant that generates follow-up questions."},
-                                      {"role": "user", "content": suggestion_prompt}],
-                            temperature=0.7,
+                            model="llama-3.1-8b-instant",
+                            messages=[{"role": "user", "content": suggestion_prompt}],
                             max_tokens=100
                         )
-                        sug_text = sug_res.choices[0].message.content
-                        import re
-                        cleaned_sugs = []
-                        for line in sug_text.split('\n'):
-                            line = line.strip()
-                            if not line or line.lower().startswith(('here', 'follow', 'sure', 'certainly')): continue
-                            # Remove numbering like "1. ", "1)", etc.
-                            line = re.sub(r'^\d+[\s.)-]*', '', line)
-                            # Remove bullets like "- ", "* ", "+ "
-                            line = re.sub(r'^[*+-]\s*', '', line)
-                            line = line.strip()
-                            if line and len(line) > 10: # Ensure it's a meaningful question
-                                cleaned_sugs.append(line)
-                        
-                        suggestions = cleaned_sugs[:3]
+                        suggestions = [s.strip() for s in sug_res.choices[0].message.content.split('\n') if s.strip()][:3]
                         if suggestions:
                             await queue.put(json.dumps({"suggestions": suggestions}))
-                    except Exception as sug_err:
-                        logger.warning(f"Follow-up generation failed: {sug_err}")
+                    except: pass
 
                     await queue.put("[DONE]")
                     return
@@ -984,7 +789,7 @@ async def chat_search_stream(
                     return
 
         except Exception as e:
-            logger.error(f"Search stream worker error: {e}")
+            logger.error(f"Worker error: {e}")
             await queue.put(json.dumps({"error": str(e)[:120]}))
             await queue.put("[DONE]")
 
@@ -992,21 +797,14 @@ async def chat_search_stream(
 
     async def generate():
         while True:
-            try:
-                item = await asyncio.wait_for(queue.get(), timeout=90.0)
-            except asyncio.TimeoutError:
-                yield "data: " + json.dumps({"error": "Search timed out."}) + "\n\n"
-                break
+            item = await queue.get()
             if item == "[DONE]":
                 yield "data: [DONE]\n\n"
                 break
             yield f"data: {item}\n\n"
 
-    return StreamingResponse(
-        generate(),
-        media_type="text/event-stream",
-        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no", "Connection": "keep-alive"},
-    )
+    return StreamingResponse(generate(), media_type="text/event-stream")
+
 
 @app.post("/scrape", tags=["tools"])
 async def scrape_url(body: ScrapeRequest):
@@ -1145,7 +943,7 @@ async def vision_analyze(
                             ],
                         }
                     ],
-                    model="llama-3.2-11b-vision-preview",
+                    model="llama-3.2-90b-vision-preview",
                     temperature=0.5,
                     max_tokens=1024,
                 )
@@ -1175,7 +973,7 @@ async def vision_analyze(
                     base64_image = base64.b64encode(content).decode('utf-8')
                     rescue_completion = await client.chat.completions.create(
                         messages=[{"role": "user","content": [{"type": "text", "text": user_query},{"type": "image_url","image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}}]}],
-                        model="llama-3.2-11b-vision-preview"
+                        model="llama-3.2-90b-vision-preview"
                     )
                     return {"text": rescue_completion.choices[0].message.content, "type": "cloud_vision_rescue", "objects": []}
                 except Exception: pass
@@ -1189,7 +987,7 @@ async def vision_analyze(
                 base64_image = base64.b64encode(content).decode('utf-8')
                 rescue_completion = await client.chat.completions.create(
                     messages=[{"role": "user","content": [{"type": "text", "text": user_query},{"type": "image_url","image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}}]}],
-                    model="llama-3.2-11b-vision-preview"
+                    model="llama-3.2-90b-vision-preview"
                 )
                 return {"text": rescue_completion.choices[0].message.content, "type": "cloud_vision_rescue", "objects": []}
             except Exception: pass
