@@ -426,28 +426,10 @@ async def generate_chat_title(chat_id: str, first_message: str):
     except Exception as e:
         logger.warning(f"Failed to generate title: {e}")
 
-                
-                prev_time = current_time
 
-            if current_session:
-                grouped_sessions.append(current_session)
 
-            for s in grouped_sessions:
-                first_msg = s[0]
-                sid = first_msg.get("id") or f"sess_{int(datetime.fromisoformat(first_msg.get('created_at').replace('Z', '+00:00')).timestamp())}"
-                if str(sid) == str(session_id):
-                    return [{
-                        "role": "ai" if m["role"] in ["assistant", "ai"] else m["role"], 
-                        "content": m["content"],
-                        "sources": m.get("sources", []),
-                        "images": m.get("images", [])
-                    } for m in s]
 
-            return []
 
-    except Exception as e:
-        logger.error(f"Failed to fetch session {session_id}: {e}")
-        return []
 
 
 # ── Memories endpoints ──────────────────────────────────────────────────
