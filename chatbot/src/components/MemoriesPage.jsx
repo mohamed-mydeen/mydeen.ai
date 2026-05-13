@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
-import { getMemories, updateMemories } from "../api/chatApi";
 import { VIEW } from "../constants";
+
+
 
 /* ─── Shared Components for Premium Look ─────────────────────────────── */
 

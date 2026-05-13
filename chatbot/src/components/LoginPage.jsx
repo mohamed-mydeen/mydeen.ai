@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
-import { loginUser, registerUser } from "../api/chatApi";
+
+
 import { useAuth } from "../context/AuthContext";
 
 function MydeenLogo() {

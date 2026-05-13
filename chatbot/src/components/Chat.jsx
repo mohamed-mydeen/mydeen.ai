@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import ReactMarkdown from "react-markdown";
-import { streamMessage, streamSearchMessage } from "../api/chatApi";
+import { streamSearchMessage } from "../api/chatApi";
+
 import { useAuth } from "../context/AuthContext";
 import Suggestions from "./Suggestions";
 import FollowUps from "./FollowUps";
