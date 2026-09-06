@@ -1,27 +1,33 @@
+/**
+ * chatApi.js — API client for Mydeen AI backend.
+ * Uses plain fetch/axios with our own JWT from localStorage.
+ * No Supabase dependency.
+ */
+
 import axios from "axios";
-import { supabase } from "../lib/supabase";
+
+const BASE_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
 
 export const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || "http://127.0.0.1:8000",
+  baseURL: BASE_URL,
   headers: { "Content-Type": "application/json" },
   timeout: 50000,
 });
 
-// ── Attach Supabase JWT (or legacy token) to every request ─────────────
-api.interceptors.request.use(async (config) => {
-  // 1. Try Supabase session first
-  const { data: { session } } = await supabase.auth.getSession();
-  const token = session?.access_token ?? localStorage.getItem("auth_token");
+// ── Attach JWT to every request ─────────────────────────────────────────
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem("auth_token");
   if (token) config.headers.Authorization = `Bearer ${token}`;
   return config;
 });
 
-// ── Handle 401 globally → dispatch logout event ─────────────────────────
+// ── Handle 401 globally → clear token ──────────────────────────────────
 api.interceptors.response.use(
   (res) => res,
   (err) => {
     if (err.response?.status === 401) {
       localStorage.removeItem("auth_token");
+      localStorage.removeItem("auth_user");
       window.dispatchEvent(new Event("auth:logout"));
     }
     return Promise.reject(err);
@@ -93,20 +99,16 @@ export async function streamSearchMessage(
   onSuggestions,
   onSession
 ) {
-  const { data: { session } } = await supabase.auth.getSession();
-  const token = session?.access_token ?? localStorage.getItem("auth_token");
+  const token = localStorage.getItem("auth_token");
 
-  const response = await fetch(
-    `${import.meta.env.VITE_API_URL || "http://127.0.0.1:8000"}/chat/search/stream`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${token}`,
-      },
-      body: JSON.stringify({ message, history, session_id, force_search }),
-    }
-  );
+  const response = await fetch(`${BASE_URL}/chat/search/stream`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify({ message, history, session_id, force_search }),
+  });
 
   if (!response.ok) {
     const errData = await response.json().catch(() => ({}));
@@ -132,19 +134,17 @@ export async function streamSearchMessage(
 
       try {
         const parsed = JSON.parse(dataStr);
-        if (parsed.session_id && onSession) onSession(parsed.session_id);
-        if (parsed.status && onStatus)      onStatus({ status: parsed.status, message: parsed.message });
-        if (parsed.sources && onSources)    onSources(parsed.sources);
-        if (parsed.images && onImages)      onImages(parsed.images);
+        if (parsed.session_id && onSession)      onSession(parsed.session_id);
+        if (parsed.status && onStatus)           onStatus({ status: parsed.status, message: parsed.message });
+        if (parsed.sources && onSources)         onSources(parsed.sources);
+        if (parsed.images && onImages)           onImages(parsed.images);
         if (parsed.suggestions && onSuggestions) onSuggestions(parsed.suggestions);
-        if (parsed.text && onChunk)         onChunk(parsed.text);
-        if (parsed.error)                   throw new Error(parsed.error);
+        if (parsed.text && onChunk)              onChunk(parsed.text);
+        if (parsed.error)                        throw new Error(parsed.error);
       } catch (e) {
         if (e.message && !e.message.includes("JSON")) throw e;
-        console.warn("Could parse search stream chunk:", e);
+        console.warn("Could not parse search stream chunk:", e);
       }
     }
   }
 }
-
-

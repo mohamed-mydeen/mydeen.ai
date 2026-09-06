@@ -1,7 +1,10 @@
 """
 Mydeen AI – FastAPI backend
-POST /register              →  create new account
-POST /login                 →  returns JWT token
+GET  /auth/google           →  redirect to Google OAuth consent
+GET  /auth/google/callback  →  Google callback → mint JWT → redirect to frontend
+GET  /auth/me               →  return current user info (JWT protected)
+POST /register              →  create account with email + password
+POST /login                 →  email/password login → returns JWT
 POST /chat                  →  standard JSON response (JWT protected)
 POST /chat/stream           →  Server-Sent Events (JWT protected)
 POST /chat/search/stream    →  Live web search + streaming SSE (JWT protected)
@@ -24,7 +27,7 @@ from groq import AsyncGroq, Groq
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Depends, BackgroundTasks, File, UploadFile, Form
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.responses import JSONResponse, StreamingResponse, RedirectResponse
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel, Field
 from jose import JWTError, jwt
@@ -32,7 +35,8 @@ import httpx
 from bs4 import BeautifulSoup
 import sys
 from pathlib import Path
-from supabase import create_client, Client
+from passlib.context import CryptContext
+from authlib.integrations.httpx_client import AsyncOAuth2Client
 load_dotenv()
 
 logging.basicConfig(level=logging.INFO)
@@ -117,107 +121,76 @@ RETRY_DELAY  = 0.5
 
 # ── JWT Auth Config ─────────────────────────────────────────────────────
 
-SECRET_KEY           = os.getenv("JWT_SECRET_KEY", "mydeen-super-secret-2025")
-SUPABASE_JWT_SECRET  = os.getenv("SUPABASE_JWT_SECRET") 
-SUPABASE_URL              = os.getenv("SUPABASE_URL") 
-SUPABASE_ANON_KEY         = os.getenv("SUPABASE_ANON_KEY") 
-SUPABASE_SERVICE_ROLE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY") 
-ALGORITHM                 = "HS256"
-TOKEN_EXPIRY         = 120  # minutes
+SECRET_KEY    = os.getenv("JWT_SECRET_KEY", "mydeen-super-secret-2025")
+ALGORITHM    = "HS256"
+TOKEN_EXPIRY = 120  # minutes
 
-bearer_scheme = HTTPBearer()
+# ── Google OAuth Config ───────────────────────────────────────────────
+GOOGLE_CLIENT_ID     = os.getenv("GOOGLE_CLIENT_ID", "")
+GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET", "")
+GOOGLE_REDIRECT_URI  = os.getenv("GOOGLE_REDIRECT_URI", "http://localhost:8000/auth/google/callback")
+FRONTEND_URL         = os.getenv("FRONTEND_URL", "http://localhost:5173")
 
-# ─── DATABASE (Supabase) ──────────────────────────────────────────────────
-from supabase_service import DBService
-logger.info("✅ Database Service initialized (Supabase)")
+GOOGLE_AUTH_URL  = "https://accounts.google.com/o/oauth2/v2/auth"
+GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
+GOOGLE_USERINFO  = "https://www.googleapis.com/oauth2/v3/userinfo"
+
+bearer_scheme = HTTPBearer(auto_error=False)
+
+# ── Password Hashing ──────────────────────────────────────────────────
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+# ─── DATABASE (MongoDB) ───────────────────────────────────────────────
+from db_service import DBService, UserService, ensure_indexes
+try:
+    ensure_indexes()
+    logger.info("✅ Database Service initialized (MongoDB)")
+except Exception as _db_err:
+    logger.warning(f"⚠️  MongoDB index setup skipped: {_db_err}")
 
 
 
 
-# ── Auth Helpers ───────────────────────────────────────────────────────
-# (Local password hashing removed in favor of Supabase Auth)
+# ── Token helpers ──────────────────────────────────────────────────────
 
-
-# ── Token helpers ───────────────────────────────────────────────────────
-
-def create_token(username: str) -> str:
+def create_token(user_id: str, email: str = "", name: str = "") -> str:
+    """Mint a signed HS256 JWT containing user identity."""
     expire = datetime.now(timezone.utc) + timedelta(minutes=TOKEN_EXPIRY)
-    return jwt.encode({"sub": username, "exp": expire}, SECRET_KEY, algorithm="HS256")
+    payload = {"sub": user_id, "email": email, "name": name, "exp": expire}
+    return jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
 
-# ── JWKS Cache (for ES256/RS256) ────────────────────────────────────────
-
-JWKS_CACHE = None
-
-async def get_supabase_jwks():
-    global JWKS_CACHE
-    if JWKS_CACHE:
-        return JWKS_CACHE
-    if not SUPABASE_URL:
-        logger.error("SUPABASE_URL is missing in .env")
-        return None
-
-    # Common Supabase/GoTrue JWKS locations to try
-    paths = [
-        "/auth/v1/jwks",
-        "/.well-known/jwks.json",
-        "/auth/v1/.well-known/jwks.json"
-    ]
-    
-    headers = {"apikey": SUPABASE_ANON_KEY} if SUPABASE_ANON_KEY else {}
-
-    for path in paths:
-        try:
-            jwks_url = f"{SUPABASE_URL.rstrip('/')}{path}"
-            logger.info(f"Trying JWKS at: {jwks_url}")
-            async with httpx.AsyncClient(timeout=5.0) as client:
-                resp = await client.get(jwks_url, headers=headers)
-                if resp.status_code == 200:
-                    JWKS_CACHE = resp.json()
-                    logger.info(f"✅ JWKS found at {path}!")
-                    return JWKS_CACHE
-                else:
-                    logger.info(f"ℹ️ {path} returned {resp.status_code}")
-        except Exception as e:
-            logger.info(f"ℹ️ Failed {path}: {type(e).__name__}")
-            continue
-
-    logger.error("❌ Could not find JWKS at any known location.")
-    return None
-
-async def verify_token(credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme)) -> str:
-    """
-    Verifies Supabase JWT and returns the user ID (sub).
-    """
+async def verify_token(
+    credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme)
+) -> str:
+    """Verify our own HS256 JWT and return the user_id (sub)."""
+    if credentials is None:
+        raise HTTPException(status_code=401, detail="Authorization header missing")
     token = credentials.credentials
     try:
-        header = jwt.get_unverified_header(token)
-        alg = header.get("alg")
-        
-        # 1. Supabase Asymmetric (Google/OAuth)
-        if alg in ["ES256", "RS256"]:
-            jwks = await get_supabase_jwks()
-            if jwks:
-                payload = jwt.decode(token, jwks, algorithms=[alg], options={"verify_aud": False})
-                return payload.get("sub")
-            payload = jwt.decode(token, "", options={"verify_signature": False, "verify_aud": False})
-            return payload.get("email") or payload.get("sub")
-
-        # Fallback for other/unhandled alg values
-        payload = jwt.decode(token, "", options={"verify_signature": False, "verify_aud": False})
-        return payload.get("email") or payload.get("sub")
-
-    except Exception as e:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        user_id: str = payload.get("sub")
+        if not user_id:
+            raise HTTPException(status_code=401, detail="Invalid token: no sub")
+        return user_id
+    except JWTError as e:
         logger.error(f"❌ Token verification failed: {e}")
-        raise HTTPException(status_code=401, detail=f"Invalid session: {str(e)}")
+        raise HTTPException(status_code=401, detail=f"Invalid or expired session")
 
 # ── App ────────────────────────────────────────────────────────────────
 
 app = FastAPI(title="Mydeen AI API", version="1.0.0")
 
 # ── Global CORS (Standard Middleware) ──────────────────────────────────
+_ALLOWED_ORIGINS = [
+    "https://mydeenai.vercel.app",       # Production
+    "http://localhost:5173",             # Vite dev server
+    "http://localhost:3000",             # Alt dev port
+    "http://127.0.0.1:5173",
+    FRONTEND_URL,                        # From .env (overrides above if set)
+]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=list(set(_ALLOWED_ORIGINS)),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -241,9 +214,7 @@ async def global_exception_handler(request, exc):
 
 # ── Schemas ────────────────────────────────────────────────────────────
 
-class AuthRequest(BaseModel):
-    email: str = Field(..., min_length=3) # Changed from username to email
-    password: str = Field(..., min_length=6)
+
 
 class Message(BaseModel):
     role: str
@@ -344,7 +315,127 @@ def is_rate_limit_error(exc):
 def health():
     return {"status": "ok", "active_model": MODEL_NAME}
 
-# Auth endpoints removed (Use Supabase Auth on Frontend)
+
+# ══════════════════════════════════════════════════════════════════════
+# AUTH ENDPOINTS
+# ══════════════════════════════════════════════════════════════════════
+
+# ── Google OAuth ────────────────────────────────────────────────────────
+
+@app.get("/auth/google", tags=["auth"])
+async def google_login():
+    """Redirect the user to Google's OAuth 2.0 consent screen."""
+    if not GOOGLE_CLIENT_ID:
+        raise HTTPException(500, "GOOGLE_CLIENT_ID not configured in .env")
+    params = {
+        "client_id": GOOGLE_CLIENT_ID,
+        "redirect_uri": GOOGLE_REDIRECT_URI,
+        "response_type": "code",
+        "scope": "openid email profile",
+        "access_type": "offline",
+        "prompt": "select_account",
+    }
+    import urllib.parse
+    url = GOOGLE_AUTH_URL + "?" + urllib.parse.urlencode(params)
+    return RedirectResponse(url=url)
+
+
+@app.get("/auth/google/callback", tags=["auth"])
+async def google_callback(code: str = None, error: str = None):
+    """Handle Google's redirect after user consent."""
+    if error or not code:
+        return RedirectResponse(url=f"{FRONTEND_URL}?auth_error={error or 'cancelled'}")
+
+    try:
+        # 1. Exchange authorization code for tokens
+        async with httpx.AsyncClient() as hclient:
+            token_resp = await hclient.post(
+                GOOGLE_TOKEN_URL,
+                data={
+                    "code": code,
+                    "client_id": GOOGLE_CLIENT_ID,
+                    "client_secret": GOOGLE_CLIENT_SECRET,
+                    "redirect_uri": GOOGLE_REDIRECT_URI,
+                    "grant_type": "authorization_code",
+                },
+                headers={"Content-Type": "application/x-www-form-urlencoded"},
+            )
+            token_data = token_resp.json()
+
+        if "error" in token_data:
+            logger.error(f"Google token error: {token_data}")
+            return RedirectResponse(url=f"{FRONTEND_URL}?auth_error=token_exchange_failed")
+
+        access_token = token_data["access_token"]
+
+        # 2. Fetch user info from Google
+        async with httpx.AsyncClient() as hclient:
+            user_resp = await hclient.get(
+                GOOGLE_USERINFO,
+                headers={"Authorization": f"Bearer {access_token}"},
+            )
+            google_user = user_resp.json()
+
+        google_id = google_user.get("sub")
+        email     = google_user.get("email", "")
+        name      = google_user.get("name", email.split("@")[0])
+        picture   = google_user.get("picture", "")
+
+        # 3. Upsert user in MongoDB
+        user = UserService.upsert_google_user(google_id, email, name, picture)
+
+        # 4. Mint our own JWT
+        jwt_token = create_token(user["id"], email=email, name=name)
+
+        # 5. Redirect to frontend with token
+        return RedirectResponse(
+            url=f"{FRONTEND_URL}/auth/callback?token={jwt_token}&name={urllib.parse.quote(name)}&email={urllib.parse.quote(email)}&picture={urllib.parse.quote(picture)}"
+        )
+
+    except Exception as e:
+        logger.error(f"Google OAuth callback error: {e}")
+        return RedirectResponse(url=f"{FRONTEND_URL}?auth_error=server_error")
+
+
+# ── Email / Password Auth ───────────────────────────────────────────────
+
+class AuthRequest(BaseModel):
+    email: str = Field(..., min_length=3)
+    password: str = Field(..., min_length=6)
+
+@app.post("/register", tags=["auth"])
+async def register(body: AuthRequest):
+    """Create a new account with email + password."""
+    existing = UserService.get_by_email(body.email.strip().lower())
+    if existing:
+        raise HTTPException(400, "An account with this email already exists.")
+    password_hash = pwd_context.hash(body.password)
+    user = UserService.create_email_user(body.email.strip().lower(), password_hash)
+    token = create_token(user["id"], email=user["email"])
+    return {"token": token, "user": {"id": user["id"], "email": user["email"]}}
+
+
+@app.post("/login", tags=["auth"])
+async def login(body: AuthRequest):
+    """Sign in with email + password, returns a JWT."""
+    user = UserService.get_by_email(body.email.strip().lower())
+    if not user or not user.get("password_hash"):
+        raise HTTPException(401, "Invalid email or password.")
+    if not pwd_context.verify(body.password, user["password_hash"]):
+        raise HTTPException(401, "Invalid email or password.")
+    token = create_token(user["id"], email=user["email"], name=user.get("name", ""))
+    return {"token": token, "user": {"id": user["id"], "email": user["email"], "name": user.get("name", "")}}
+
+
+@app.get("/auth/me", tags=["auth"])
+async def get_me(user_id: str = Depends(verify_token)):
+    """Return the current logged-in user's profile."""
+    user = UserService.get_by_id(user_id)
+    if not user:
+        raise HTTPException(404, "User not found")
+    # Never expose password_hash
+    user.pop("password_hash", None)
+    return user
 
 
 

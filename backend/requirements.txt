@@ -1,12 +1,12 @@
 fastapi
 uvicorn[standard]
 python-dotenv
-pymongo
+pymongo[srv]
 groq
 python-jose[cryptography]
 httpx
 beautifulsoup4
-supabase
+authlib
 pydantic
 python-multipart
 python-whois
@@ -16,3 +16,4 @@ wikipedia
 ultralytics
 opencv-python-headless
 pytesseract
+passlib[bcrypt]

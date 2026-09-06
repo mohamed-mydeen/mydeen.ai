@@ -1,6 +1,4 @@
-import { createClient } from '@supabase/supabase-js';
-
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+// supabaseClient.js — deprecated, kept for backward compatibility.
+// Supabase has been replaced by custom backend auth (Google OAuth via FastAPI).
+// Use src/lib/api.js and src/context/AuthContext.jsx instead.
+export const supabase = null;

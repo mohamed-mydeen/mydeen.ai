@@ -42,10 +42,10 @@ function MydeenLogo() {
 }
 
 function NewHome({ onNavigate, onGoToChat }) {
-  const { user: supaUser } = useAuth();
-  const displayName = supaUser?.user_metadata?.full_name 
-                   || supaUser?.user_metadata?.name 
-                   || localStorage.getItem("user_name") 
+  const { user } = useAuth();
+  const displayName = user?.name
+                   || user?.email?.split("@")[0]
+                   || localStorage.getItem("user_name")
                    || "";
   const firstName = displayName.split(" ")[0];
   const greetingName = firstName ? ` ${firstName}` : "";
@@ -306,13 +306,25 @@ function SplashScreen({ isVisible }) {
 
 export default function App() {
   const API_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
-  // ── Auth via Supabase (falls back to legacy localStorage token) ──
-  const { isAuthenticated, user, isLoading: authLoading, logout: supaLogout, getAccessToken } = useAuth();
-  // Also allow legacy token-only flow (username/password backend)
-  const [legacyAuth, setLegacyAuth] = useState(
-    () => !!localStorage.getItem("auth_token")
-  );
-  const effectiveAuth = isAuthenticated || legacyAuth;
+  // ── Auth via custom backend JWT ──
+  const { isAuthenticated, user, isLoading: authLoading, logout, getAccessToken, handleOAuthCallback } = useAuth();
+  const effectiveAuth = isAuthenticated;
+
+  /* ── Handle Google OAuth callback (?token=... in URL) ── */
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("token")) {
+      handleOAuthCallback(params);
+      // Clean URL
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+    // Handle /auth/callback path
+    if (window.location.pathname === "/auth/callback") {
+      handleOAuthCallback(params);
+      window.history.replaceState({}, document.title, "/");
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const [showSplash, setShowSplash] = useState(true);
 
@@ -361,12 +373,6 @@ export default function App() {
     return () => window.removeEventListener("popstate", handlePopState);
   }, []);
 
-  /* Listen for 401 logout events from axios interceptor (legacy flow) */
-  useEffect(() => {
-    const handleLogout = () => setLegacyAuth(false);
-    window.addEventListener("auth:logout", handleLogout);
-    return () => window.removeEventListener("auth:logout", handleLogout);
-  }, []);
 
   const [isProcessing, setIsProcessing] = useState(false);
   const [isPlusMenuOpen, setIsPlusMenuOpen] = useState(false);
@@ -379,7 +385,7 @@ export default function App() {
   const [showVoice, setShowVoice] = useState(false);
   const fileInputRef = useRef(null);
 
-  /* ── Fetch history from Database (Supabase) ── */
+  /* ── Fetch history from MongoDB ── */
   useEffect(() => {
     if (effectiveAuth) {
       const loadHistory = async () => {
@@ -590,10 +596,6 @@ export default function App() {
 
   };
 
-  const logout = async () => {
-    await supaLogout();          // clears Supabase session + localStorage token
-    setLegacyAuth(false);
-  };
 
   const handleRenameChat = async (sid, newTitle) => {
     try {
@@ -650,7 +652,7 @@ export default function App() {
     }
   };
 
-  /* ── Full-screen loading spinner while Supabase hydrates session ── */
+  /* ── Full-screen loading spinner while auth hydrates session ── */
   if (authLoading) {
     return (
       <div style={{
