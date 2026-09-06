@@ -336,6 +336,20 @@ function AuthPanel({ onLogin }) {
           {isSignup ? "Sign In" : "Create account"}
         </button>
       </p>
+      
+      {/* ── Skip for now ── */}
+      <div style={{ textAlign: "center", marginTop: "1rem" }}>
+        <button
+          type="button"
+          className="auth-btn auth-btn--ghost"
+          onClick={() => onLogin()}
+          disabled={anyLoading}
+          style={{ width: "auto", display: "inline-flex", fontSize: "0.9rem" }}
+        >
+          Skip for now (Guest)
+          <span className="material-symbols-outlined" style={{ fontSize: "1.2rem", marginLeft: "4px" }}>arrow_forward</span>
+        </button>
+      </div>
     </div>
   );
 }
